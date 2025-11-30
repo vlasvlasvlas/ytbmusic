@@ -1,0 +1,26 @@
+{
+    "playback": {
+        "mode": "hybrid",
+        "volume": 75,
+        "repeat": "playlist",
+        "shuffle": false
+    },
+    "cache": {
+        "enabled": true,
+        "max_size_gb": 5,
+        "location": "./cache",
+        "prefetch_count": 2,
+        "auto_cleanup": true
+    },
+    "ui": {
+        "default_skin": "cassette",
+        "color_support": true,
+        "show_next_track": true
+    },
+    "state": {
+        "last_playlist": null,
+        "last_position": 0,
+        "last_track_index": 0,
+        "last_skin": "cassette"
+    }
+}

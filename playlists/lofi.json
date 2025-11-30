@@ -1,0 +1,50 @@
+{
+    "version": "1.0",
+    "metadata": {
+        "name": "Lo-Fi Beats to Code",
+        "description": "Chill lo-fi beats perfect for coding sessions",
+        "author": "ytbmusic",
+        "tags": [
+            "lofi",
+            "chill",
+            "study",
+            "coding"
+        ]
+    },
+    "settings": {
+        "shuffle": false,
+        "repeat": "playlist"
+    },
+    "tracks": [
+        {
+            "title": "Lofi Hip Hop Radio - Beats to Study/Relax",
+            "artist": "Lofi Girl",
+            "url": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+            "tags": [
+                "lofi",
+                "24/7",
+                "study"
+            ]
+        },
+        {
+            "title": "Chillhop Radio - jazzy & lofi hip hop beats",
+            "artist": "Chillhop Music",
+            "url": "https://www.youtube.com/watch?v=5yx6BWlEVcY",
+            "tags": [
+                "lofi",
+                "jazz",
+                "chill"
+            ]
+        },
+        {
+            "title": "Peaceful Piano - Relaxing Music",
+            "artist": "Sounds of Spotify",
+            "url": "https://www.youtube.com/watch?v=7NOSDKb0HlU",
+            "tags": [
+                "piano",
+                "peaceful",
+                "ambient"
+            ]
+        }
+    ]
+}
