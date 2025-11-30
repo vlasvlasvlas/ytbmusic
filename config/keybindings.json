@@ -1,0 +1,19 @@
+{
+    "play_pause": "space",
+    "next": "n",
+    "previous": "p",
+    "volume_up": "+",
+    "volume_down": "-",
+    "seek_forward": "right",
+    "seek_backward": "left",
+    "jump_forward": "]",
+    "jump_backward": "[",
+    "playlist_browser": "l",
+    "skin_selector": "s",
+    "queue_view": "q",
+    "help": "?",
+    "shuffle": "z",
+    "repeat": "r",
+    "quit": "q",
+    "mute": "m"
+}

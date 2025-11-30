@@ -1,0 +1,62 @@
+{
+    "version": "1.0",
+    "metadata": {
+        "name": "Classic Rock Legends",
+        "description": "Legendary rock tracks from the 70s-90s",
+        "author": "ytbmusic",
+        "tags": [
+            "rock",
+            "classic",
+            "70s",
+            "80s",
+            "90s"
+        ]
+    },
+    "settings": {
+        "shuffle": false,
+        "repeat": "playlist"
+    },
+    "tracks": [
+        {
+            "title": "Bohemian Rhapsody",
+            "artist": "Queen",
+            "url": "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
+            "tags": [
+                "rock",
+                "70s",
+                "queen"
+            ]
+        },
+        {
+            "title": "Stairway to Heaven",
+            "artist": "Led Zeppelin",
+            "url": "https://www.youtube.com/watch?v=QkF3oxziUI4",
+            "tags": [
+                "rock",
+                "70s",
+                "led zeppelin"
+            ]
+        },
+        {
+            "title": "Sweet Child O' Mine",
+            "artist": "Guns N' Roses",
+            "url": "https://www.youtube.com/watch?v=1w7OgIMMRc4",
+            "tags": [
+                "rock",
+                "80s",
+                "guns n roses"
+            ]
+        },
+        {
+            "title": "Smells Like Teen Spirit",
+            "artist": "Nirvana",
+            "url": "https://www.youtube.com/watch?v=hTWKbfoikeg",
+            "tags": [
+                "rock",
+                "90s",
+                "grunge",
+                "nirvana"
+            ]
+        }
+    ]
+}
