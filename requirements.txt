@@ -1,0 +1,4 @@
+yt-dlp>=2024.01.01
+PyYAML>=6.0.1
+python-vlc>=3.0.20123
+urwid>=2.6.14
