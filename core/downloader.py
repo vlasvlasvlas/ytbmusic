@@ -59,7 +59,64 @@ class YouTubeDownloader:
                     'formats': info.get('formats', [])
                 }
         except Exception as e:
-            raise Exception(f"Failed to extract info from {url}: {e}")
+            return None
+    
+    def extract_metadata(self, url: str) -> Optional[Dict[str, str]]:
+        """
+        Extract metadata from YouTube URL and parse title.
+        
+        Attempts to parse title in format "Artist - Song Title" or similar.
+        
+        Args:
+            url: YouTube video URL
+            
+        Returns:
+            Dictionary with 'title', 'artist', 'duration' or None if failed
+        """
+        try:
+            info = self.extract_info(url)
+            if not info:
+                return None
+            
+            raw_title = info.get('title', '')
+            uploader = info.get('uploader', 'Unknown Artist')
+            duration = info.get('duration', 0)
+            
+            # Try to parse "Artist - Title" format
+            title = raw_title
+            artist = uploader
+            
+            # Common separators
+            separators = [' - ', ' – ', ' — ', ' | ', ' // ']
+            
+            for sep in separators:
+                if sep in raw_title:
+                    parts = raw_title.split(sep, 1)
+                    if len(parts) == 2:
+                        artist = parts[0].strip()
+                        title = parts[1].strip()
+                        break
+            
+            # Clean up common suffixes
+            suffixes = [
+                '(Official Video)', '(Official Music Video)', 
+                '(Official Audio)', '(Lyric Video)', '(Lyrics)',
+                '[Official Video]', '[Official Music Video]',
+                '[Official Audio]', '[Lyric Video]', '[Lyrics]'
+            ]
+            
+            for suffix in suffixes:
+                if suffix in title:
+                    title = title.replace(suffix, '').strip()
+            
+            return {
+                'title': title,
+                'artist': artist,
+                'duration': duration,
+                'raw_title': raw_title
+            }
+        except Exception as e:
+            return None
     
     def get_stream_url(self, url: str) -> str:
         """
@@ -90,6 +147,44 @@ class YouTubeDownloader:
                 
         except Exception as e:
             raise Exception(f"Failed to get stream URL from {url}: {e}")
+
+    def extract_playlist_items(self, url: str):
+        """
+        Extract basic metadata for a YouTube playlist (no download).
+        
+        Returns list of dicts with: title, artist (uploader), duration, url.
+        """
+        try:
+            opts = self.ydl_opts_info.copy()
+            opts["extract_flat"] = True  # faster, no individual downloads
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+            entries = info.get("entries", []) or []
+            items = []
+            base_webpage_url = info.get("webpage_url")
+
+            for entry in entries:
+                # entry may already contain url; if not, build from id
+                eurl = entry.get("url") or entry.get("webpage_url")
+                if not eurl and entry.get("id"):
+                    eurl = f"https://www.youtube.com/watch?v={entry['id']}"
+                items.append(
+                    {
+                        "title": entry.get("title", "Unknown"),
+                        "artist": entry.get("uploader", "Unknown Artist"),
+                        "duration": entry.get("duration", 0),
+                        "url": eurl,
+                    }
+                )
+            return {
+                "title": info.get("title", "Imported Playlist"),
+                "count": len(items),
+                "items": items,
+                "source_url": base_webpage_url or url,
+            }
+        except Exception as e:
+            raise Exception(f"Failed to extract playlist: {e}")
     
     def download(self, url: str, output_path: Optional[str] = None, 
                  progress_callback: Optional[Callable] = None) -> str:
