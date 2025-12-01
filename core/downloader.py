@@ -81,7 +81,8 @@ class YouTubeDownloader:
                 
                 if audio_formats:
                     # Sort by quality (abr = audio bitrate)
-                    audio_formats.sort(key=lambda x: x.get('abr', 0), reverse=True)
+                    # Use 'or 0' to handle None values that get() might return
+                    audio_formats.sort(key=lambda x: x.get('abr') or 0, reverse=True)
                     return audio_formats[0]['url']
                 
                 # Fallback to any format with audio
