@@ -1,3 +1,12 @@
+```bash
+  ________  ________  ________  _______   ________  ________   ________  ________ 
+ ╱    ╱   ╲╱        ╲╱       ╱ ╱       ╲╲╱    ╱   ╲╱        ╲ ╱        ╲╱        ╲
+╱         ╱        _╱        ╲╱        ╱╱         ╱        _╱_╱       ╱╱         ╱
+╲__     ╱╱╱       ╱╱         ╱         ╱         ╱-        ╱╱         ╱       --╱ 
+  ╲____╱╱ ╲______╱ ╲________╱╲__╱__╱__╱╲________╱╲________╱ ╲________╱╲________╱  
+
+```
+
 # YTBMusic - Terminal YouTube Music Player
 
 Reproductor de audio desde YouTube en terminal, con playlists y skins ASCII. Optimizado para 80x40; los skins más grandes se filtran.
