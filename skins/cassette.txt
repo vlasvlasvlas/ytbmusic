@@ -4,14 +4,14 @@ author: ytbmusic
 version: 2.0
 mode: template
 zones:
-  title: {line: 7, col: 8, width: 35}
-  artist: {line: 8, col: 8, width: 35}
-  time: {line: 10, col: 8, width: 11}
+  title: {line: 7, col: 9, width: 29}
+  artist: {line: 8, col: 9, width: 29}
+  time: {line: 10, col: 9, width: 11}
   track_num: {line: 10, col: 23, width: 7}
-  progress: {line: 11, col: 8, width: 35}
-  playlist: {line: 13, col: 8, width: 30}
-  next_track: {line: 14, col: 8, width: 32}
-  cache_status: {line: 15, col: 8, width: 1}
+  progress: {line: 11, col: 9, width: 25}
+  playlist: {line: 13, col: 9, width: 25}
+  next_track: {line: 14, col: 9, width: 25}
+  cache_status: {line: 15, col: 9, width: 1}
   shuffle_status: {line: 15, col: 18, width: 3}
   repeat_status: {line: 15, col: 30, width: 8}
   volume: {line: 18, col: 20, width: 3}
@@ -21,26 +21,26 @@ zones:
     next: {line: 18, col: 20, width: 2}
     vol_down: {line: 18, col: 28, width: 1}
     vol_up: {line: 18, col: 34, width: 1}
-    quit: {line: 18, col: 40, width: 1}
+    quit: {line: 18, col: 38, width: 1}
 ---
 
-  ┌────────────────────────────────────────────┐
-  │                                            │
-  │    ╔════════════════════════════════╗      │
-  │    ║  ___    CASSETTE TAPE    ___  ║      │
-  │    ║ /   \                   /   \ ║      │
-  │    ║ \___/    ♪  PLAYING     \___/ ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ║                               ║      │
-  │    ╚════════════════════════════════╝      │
-  │                                            │
-  │                                            │
-  └────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────┐
+  │                                         │
+  │    ╔═══════════════════════════════╗    │
+  │    ║  ___    CASSETTE TAPE    ___  ║    │
+  │    ║ /   \                   /   \ ║    │
+  │    ║ \___/    ♪  PLAYING     \___/ ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ║                               ║    │
+  │    ╚═══════════════════════════════╝    │
+  │                                         │
+  │                                         │
+  └─────────────────────────────────────────┘
