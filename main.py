@@ -10,10 +10,12 @@ from typing import Dict, Optional
 from core.player import MusicPlayer, PlayerState
 from core.downloader import YouTubeDownloader
 from core.playlist import PlaylistManager
+from core.playlist_editor import import_playlist_from_youtube, list_playlists
+from core import playlist_editor
 from ui.skin_loader import SkinLoader
 
 
-HELP_TEXT = "Space=Play/Pause N/P=Next/Prev ←/→=Seek ↑/↓=Vol S=Skin M=Menu Q=Quit"
+HELP_TEXT = "Space=Play/Pause N/P=Next/Prev ←/→=Seek ↑/↓=Vol S=Skin Z=Shuffle R=Repeat M=Menu Q=Quit"
 PAD_WIDTH = 120
 PAD_HEIGHT = 88
 
@@ -23,6 +25,7 @@ class UIState(Enum):
     LOADING = "loading"
     PLAYER = "player"
     ERROR = "error"
+    EDIT = "edit"
 
 
 @dataclass
@@ -75,7 +78,7 @@ class YTBMusicUI:
     def __init__(self):
         # Core components
         self.player = MusicPlayer()
-        self.player.on_end_callback = self._next_track
+        self.player.on_end_callback = self._on_track_end_callback
         self.downloader = YouTubeDownloader(cache_dir="cache")
         self.playlist_manager = PlaylistManager(playlists_dir="playlists")
         self.skin_loader = SkinLoader()
@@ -179,11 +182,11 @@ class YTBMusicUI:
         items = []
         title = [
             "",
-            "    ▄▄▄▄▄▄▄ ▄   ▄ ▄▄▄▄▄▄  ▄▄   ▄▄ ▄   ▄ ▄▄▄▄▄▄ ▄ ▄▄▄▄▄",
-            "      █   █ █   █   █   █ █ █ █ █ █   █ █     ▄█ █   ",
-            "      █▄▄▄█  ▀▀▀█ ▄▄█▄▄▄█ █ █ █ █ ▀▀▀▀█ █▄▄▄█  █ █▄▄▄",
-            "",
-            "              · Terminal Music Player ·",
+            "  ________  ________  ________  _______   ________  ________   ________  ________ ",
+            " ╱    ╱   ╲╱        ╲╱       ╱ ╱       ╲╲╱    ╱   ╲╱        ╲ ╱        ╲╱        ╲",
+            "╱         ╱        _╱        ╲╱        ╱╱         ╱        _╱_╱       ╱╱         ╱",
+            "╲__     ╱╱╱       ╱╱         ╱         ╱         ╱-        ╱╱         ╱       --╱ ",
+            "  ╲____╱╱ ╲______╱ ╲________╱╲__╱__╱__╱╲________╱╲________╱ ╲________╱╲________╱  ",
             "",
         ]
         for line in title:
@@ -255,7 +258,7 @@ class YTBMusicUI:
         self.menu_walker.append(urwid.Text(""))
         self.menu_walker.append(
             urwid.AttrMap(
-                urwid.Text("  ↑/↓ Navigate  •  Enter/Number/Letter Select  •  Q Quit", align="center"),
+                urwid.Text("  ↑/↓ Navigate  •  Enter/Number/Letter Select  •  I Import YT Playlist  •  Q Quit", align="center"),
                 "status",
             )
         )
@@ -351,6 +354,47 @@ class YTBMusicUI:
         except Exception as e:
             self._handle_error(e, context=func.__name__)
             return None
+
+    def _prompt_import_playlist(self):
+        """Blocking prompt to import a YouTube playlist (metadata) with optional download."""
+        print("\nImport YouTube playlist")
+        url = input("  Playlist URL: ").strip()
+        if not url:
+            return
+        name = input("  Target playlist name (Enter = use playlist title): ").strip()
+        overwrite = input("  Overwrite if exists? (y/N): ").strip().lower() == "y"
+        download = input("  Download after import? (y/N): ").strip().lower() == "y"
+
+        try:
+            self.status.set("Importing playlist...")
+            result = import_playlist_from_youtube(url, playlist_name=name or None, overwrite=overwrite)
+            msg = f"Imported '{result['name']}': +{result['added']} / skipped {result['skipped']}"
+            self.status.set(msg)
+            # Refresh playlists in menu
+            self.playlists = list_playlists()
+
+            if download and result.get("added_items"):
+                yd = YouTubeDownloader()
+                added = result["added_items"]
+                total = len(added)
+                failures = 0
+                print("\nDownloading added tracks...")
+                for idx, item in enumerate(added, 1):
+                    title = item.get("title", "Unknown")
+
+                    def hook(percent, downloaded, total_bytes):
+                        print(f"\r[{idx}/{total}] {title[:40]:40}  {percent:5.1f}%", end="")
+
+                    try:
+                        yd.download(item["url"], progress_callback=hook)
+                        print("")
+                    except Exception as e:
+                        failures += 1
+                        print(f"\nFailed: {title} ({e})")
+                print(f"\nDownload summary: {total - failures} ok, {failures} failed.")
+                self.status.set(f"{msg} • Downloads: {total - failures} ok / {failures} failed")
+        except Exception as e:
+            self._handle_error(e, "import_playlist")
 
     # ---------- actions ----------
     def _on_playlist_select(self, button, playlist_idx):
@@ -564,6 +608,12 @@ class YTBMusicUI:
             if not self._next_track():
                 self.player.stop()
 
+    def _on_track_end_callback(self):
+        """Called by VLC when track ends (runs in VLC thread)."""
+        # Schedule next track in main thread to avoid urwid thread-safety issues
+        if hasattr(self, 'loop') and self.loop:
+            self.loop.set_alarm_in(0.1, lambda loop, user_data: self._next_track())
+    
     def _next_track(self):
         if not self.current_playlist:
             return False
@@ -607,6 +657,8 @@ class YTBMusicUI:
                 idx = ord(key.upper()) - ord("A")
                 if idx < len(self.skins):
                     self._on_skin_select(None, idx)
+            elif key in ("i", "I"):
+                self._prompt_import_playlist()
             return
         if key == " ":
             self.player.toggle_pause()
