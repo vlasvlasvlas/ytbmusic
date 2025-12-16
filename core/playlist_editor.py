@@ -7,10 +7,7 @@ from core.downloader import YouTubeDownloader
 
 PLAYLISTS_DIR = Path("playlists")
 
-DEFAULT_SETTINGS = {
-    "shuffle": False,
-    "repeat": "playlist"
-}
+DEFAULT_SETTINGS = {"shuffle": False, "repeat": "playlist"}
 
 
 def list_playlists() -> List[str]:
@@ -44,10 +41,10 @@ def create_playlist(name: str, description: str = "", author: str = "ytbmusic"):
             "name": name,
             "description": description,
             "author": author,
-            "tags": []
+            "tags": [],
         },
         "settings": DEFAULT_SETTINGS.copy(),
-        "tracks": []
+        "tracks": [],
     }
     save_playlist(name, data)
 
@@ -69,9 +66,9 @@ def add_track(
 ) -> Dict:
     """
     Add a track to playlist with optional auto-extraction.
-    
+
     If title/artist not provided, attempts to extract from YouTube.
-    
+
     Args:
         playlist_name: Playlist name
         url: YouTube URL
@@ -79,43 +76,45 @@ def add_track(
         artist: Artist name (optional, will auto-extract if None)
         tags: List of tags (optional)
         duration: Duration in seconds (optional, auto-extracted if None)
-        
+
     Returns:
         Dictionary with extracted/provided metadata, or None if failed
     """
     from core.downloader import YouTubeDownloader
-    
+
     # Auto-extract if title/artist not provided
     if not title or not artist or duration is None:
         try:
             downloader = YouTubeDownloader()
             metadata = downloader.extract_metadata(url)
             if metadata:
-                title = title or metadata.get('title', 'Unknown')
-                artist = artist or metadata.get('artist', 'Unknown Artist')
-                duration = duration if duration is not None else metadata.get('duration')
+                title = title or metadata.get("title", "Unknown")
+                artist = artist or metadata.get("artist", "Unknown Artist")
+                duration = (
+                    duration if duration is not None else metadata.get("duration")
+                )
         except Exception:
             # Fallback to defaults if extraction fails
-            title = title or 'Unknown'
-            artist = artist or 'Unknown Artist'
+            title = title or "Unknown"
+            artist = artist or "Unknown Artist"
             duration = duration if duration is not None else 0
-    
+
     # Add track
     data = load_playlist(playlist_name)
     if "tracks" not in data:
         data["tracks"] = []
-    
+
     track = {
         "title": title,
         "artist": artist,
         "url": url,
         "tags": tags or [],
-        "duration": duration if duration is not None else 0
+        "duration": duration if duration is not None else 0,
     }
-    
+
     data["tracks"].append(track)
     save_playlist(playlist_name, data)
-    
+
     return track
 
 
@@ -126,17 +125,17 @@ def import_playlist_from_youtube(
     url: str,
     playlist_name: Optional[str] = None,
     overwrite: bool = False,
-    max_tracks: int = MAX_PLAYLIST_TRACKS
+    max_tracks: int = MAX_PLAYLIST_TRACKS,
 ) -> Dict:
     """
     Import all items from a YouTube playlist (metadata only).
-    
+
     Args:
         url: YouTube playlist URL
         playlist_name: Optional name for the new playlist (defaults to yt title)
         overwrite: If True, replace existing playlist content
         max_tracks: Maximum number of tracks to import (default: 30)
-    
+
     Returns:
         Dict with summary: {name, count, added, skipped, added_items, truncated}
     """
@@ -156,10 +155,10 @@ def import_playlist_from_youtube(
     skipped = 0
     added_items = []
     truncated = False
-    
+
     items = info.get("items", [])
     original_count = len(items)
-    
+
     # Apply track limit
     if len(items) > max_tracks:
         items = items[:max_tracks]
@@ -207,11 +206,11 @@ def playlist_summary(name: str) -> str:
 def delete_track(name: str, index: int) -> bool:
     """
     Delete a track from playlist by index.
-    
+
     Args:
         name: Playlist name
         index: Track index (0-based)
-        
+
     Returns:
         True if deleted successfully
     """
@@ -230,10 +229,10 @@ def delete_track(name: str, index: int) -> bool:
 def list_tracks(name: str) -> List[Dict]:
     """
     Get list of tracks in a playlist.
-    
+
     Args:
         name: Playlist name
-        
+
     Returns:
         List of track dictionaries
     """
@@ -242,32 +241,34 @@ def list_tracks(name: str) -> List[Dict]:
         return data.get("tracks", [])
     except Exception:
         return []
+
+
 def get_missing_tracks(playlist_name: str) -> List[Dict]:
     """
     Identify tracks in a playlist that are not yet downloaded/cached.
-    
+
     Args:
         playlist_name: Name of the playlist
-        
+
     Returns:
         List of track dictionaries that need downloading
     """
     from core.downloader import YouTubeDownloader
-    
+
     try:
         data = load_playlist(playlist_name)
         tracks = data.get("tracks", [])
         if not tracks:
             return []
-            
+
         downloader = YouTubeDownloader()
         missing = []
-        
+
         for track in tracks:
             url = track.get("url")
             if url and not downloader.is_cached(url):
                 missing.append(track)
-                
+
         return missing
     except Exception:
         return []

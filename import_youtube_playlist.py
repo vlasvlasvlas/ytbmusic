@@ -26,7 +26,9 @@ def preview(url: str, info: dict, max_items: int = 5):
             dur = item.get("duration") or 0
             mm = dur // 60
             ss = dur % 60
-            print(f"  {i:2d}. {item.get('title','Unknown')} - {item.get('artist','Unknown Artist')} ({mm:02d}:{ss:02d})")
+            print(
+                f"  {i:2d}. {item.get('title','Unknown')} - {item.get('artist','Unknown Artist')} ({mm:02d}:{ss:02d})"
+            )
     print("------------------------\n")
 
 
@@ -47,6 +49,7 @@ def main():
         download_after = True
 
     from core.downloader import YouTubeDownloader
+
     yd = YouTubeDownloader()
     info = yd.extract_playlist_items(url)
 
@@ -54,7 +57,9 @@ def main():
 
     target_name = playlist_name or info.get("title") or "Imported Playlist"
     if not overwrite and target_name in list_playlists():
-        print(f"Playlist '{target_name}' exists. Pass --overwrite to replace or choose another name.")
+        print(
+            f"Playlist '{target_name}' exists. Pass --overwrite to replace or choose another name."
+        )
         return
 
     confirm = input(f"Import into '{target_name}'? (y/N): ").strip().lower()
@@ -62,8 +67,12 @@ def main():
         print("Cancelled.")
         return
 
-    result = import_playlist_from_youtube(url, playlist_name=target_name, overwrite=overwrite)
-    print(f"Imported '{result['name']}': added {result['added']} tracks, skipped {result['skipped']} (existing).")
+    result = import_playlist_from_youtube(
+        url, playlist_name=target_name, overwrite=overwrite
+    )
+    print(
+        f"Imported '{result['name']}': added {result['added']} tracks, skipped {result['skipped']} (existing)."
+    )
 
     if download_after and result.get("added_items"):
         print("\nDownloading added tracks...")

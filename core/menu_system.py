@@ -80,4 +80,3 @@ def add_track_manual():
         print(f"Added '{title}' to '{pl}'.")
     else:
         print("No URL provided.")
-
