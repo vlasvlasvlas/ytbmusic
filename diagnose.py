@@ -6,18 +6,20 @@ Tests all features without requiring MPV
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent))
 
-print("="*70)
+print("=" * 70)
 print("YTBMusic - Diagnóstico Completo")
-print("="*70)
+print("=" * 70)
 print()
 
 # Test 1: Animated Skin
 print("1️⃣ Test Animación:")
 from ui.skin_loader import SkinLoader
+
 loader = SkinLoader()
-meta, result = loader.load('skins/cassette_animated.txt')
+meta, result = loader.load("skins/cassette_animated.txt")
 print(f"   ✅ Is animated: {loader.is_animated}")
 print(f"   ✅ Frames: {len(result)} frames")
 print(f"   ✅ FPS: {meta.get('animation_fps')}")
@@ -29,9 +31,9 @@ print()
 print("2️⃣ Test Variables de Metadata:")
 print("   Checkeando que existan en _get_context...")
 
-with open('main.py', 'r') as f:
+with open("main.py", "r") as f:
     source = f.read()
-    
+
 checks = [
     ("context['TITLE']", "TITLE variable"),
     ("context['ARTIST']", "ARTIST variable"),
@@ -86,6 +88,7 @@ print()
 # Test 5: Playlist Loading
 print("5️⃣ Test Playlists:")
 from core.playlist import PlaylistManager
+
 pm = PlaylistManager()
 playlists = pm.list_playlists()
 print(f"   ✅ Playlists encontradas: {len(playlists)}")
@@ -109,9 +112,9 @@ for check, desc in new_keys:
         print(f"   ❌ {desc} - MISSING")
 
 print()
-print("="*70)
+print("=" * 70)
 print("📊 RESUMEN")
-print("="*70)
+print("=" * 70)
 print()
 print("Si todos los tests tienen ✅, el código está CORRECTO.")
 print("Si ves ❌, hay algún problema en el código.")
@@ -128,4 +131,4 @@ print("     2. Hay un track seleccionado")
 print()
 print("Para probar la app completa ejecutá:")
 print("   ./run.sh")
-print("="*70)
+print("=" * 70)

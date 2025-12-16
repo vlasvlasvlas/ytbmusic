@@ -5,7 +5,8 @@ Quick test: Does MPV IPC player work?
 
 import sys
 import time
-sys.path.insert(0, '.')
+
+sys.path.insert(0, ".")
 
 print("Testing MusicPlayer with IPC...")
 
@@ -32,7 +33,7 @@ print(f"   Current: {info['current_formatted']}")
 print(f"   Total: {info['total_formatted']}")
 print(f"   Percentage: {info['percentage']:.1f}%")
 
-if info['current_time'] > 0:
+if info["current_time"] > 0:
     print("   ✅ TIME IS UPDATING!")
 else:
     print("   ❌ Time stuck at 0")
@@ -49,7 +50,7 @@ player.stop()
 player.cleanup()
 print("   ✅ Done")
 
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("Si viste 'TIME IS UPDATING' → Player funciona")
 print("Si viste 'Time stuck at 0' → Hay problema con IPC")
-print("="*50)
+print("=" * 50)

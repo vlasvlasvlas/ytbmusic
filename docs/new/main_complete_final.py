@@ -19,6 +19,7 @@ PAD_HEIGHT = 38
 
 class UIState(Enum):
     """UI States for state machine."""
+
     MENU = "menu"
     LOADING = "loading"
     PLAYER = "player"
@@ -28,6 +29,7 @@ class UIState(Enum):
 @dataclass
 class PlaylistMetadata:
     """Cached playlist metadata."""
+
     name: str
     track_count: int
     loaded_at: float
@@ -36,6 +38,7 @@ class PlaylistMetadata:
 @dataclass
 class SkinMetadata:
     """Cached skin metadata."""
+
     name: str
     author: str
     loaded_at: float
@@ -66,7 +69,7 @@ class SkinWidget(urwid.WidgetWrap):
 
 class StatusBar(urwid.WidgetWrap):
     def __init__(self, text):
-        self.text = urwid.Text(text, align='center')
+        self.text = urwid.Text(text, align="center")
         super().__init__(urwid.AttrWrap(self.text, "status"))
 
     def set(self, text):
@@ -85,33 +88,33 @@ class YTBMusicUI:
         # State management
         self.state = UIState.MENU
         self.previous_state = None
-        
+
         # Skins
         self.skins = SkinLoader.list_available_skins()
         self.current_skin_idx = 0
         self.skin_lines = []
         self._loading_skin = False
-        
+
         # Playlists
         self.playlists = self.playlist_manager.list_playlists()
         self.current_playlist_idx = 0
         self.current_playlist = None
         self.consecutive_errors = 0
-        
+
         # Caching system
         self.playlist_cache: Dict[str, PlaylistMetadata] = {}
         self.skin_cache: Dict[str, SkinMetadata] = {}
         self.cache_ttl = 300  # 5 minutes
-        
+
         # UI state
         self.refresh_alarm = None
         self.spinner_alarm = None
         self.spinner_frame = 0
         self.loading_message = ""
-        
+
         # Track if currently playing from cache
         self.is_cached_playback = False
-        
+
         # Widgets
         self.skin_widget = SkinWidget()
         self.menu_widget = None
@@ -121,7 +124,7 @@ class YTBMusicUI:
         # Main container
         self.main_widget = urwid.WidgetPlaceholder(urwid.Text("Initializing..."))
         frame = urwid.Frame(body=self.main_widget, footer=self.status)
-        
+
         self.loop = urwid.MainLoop(
             frame,
             unhandled_input=self.unhandled_input,
@@ -135,7 +138,7 @@ class YTBMusicUI:
                 ("info", "light blue", ""),
             ],
         )
-        
+
         # Setup terminal resize handler
         signal.signal(signal.SIGWINCH, self._handle_resize)
 
@@ -153,14 +156,14 @@ class YTBMusicUI:
             # Check if cache is still valid
             if time.time() - meta.loaded_at < self.cache_ttl:
                 return meta
-        
+
         # Load and cache
         try:
             pl = self.playlist_manager.load_playlist(name)
             meta = PlaylistMetadata(
                 name=pl.get_name(),
                 track_count=pl.get_track_count(),
-                loaded_at=time.time()
+                loaded_at=time.time(),
             )
             self.playlist_cache[name] = meta
             return meta
@@ -173,16 +176,16 @@ class YTBMusicUI:
             meta = self.skin_cache[name]
             if time.time() - meta.loaded_at < self.cache_ttl:
                 return meta
-        
+
         # Load and cache
         try:
             skin_path = Path("skins") / f"{name}.txt"
             loader = SkinLoader()
             skin_meta, _ = loader.load(str(skin_path))
             meta = SkinMetadata(
-                name=skin_meta.get('name', name),
-                author=skin_meta.get('author', 'Unknown'),
-                loaded_at=time.time()
+                name=skin_meta.get("name", name),
+                author=skin_meta.get("author", "Unknown"),
+                loaded_at=time.time(),
             )
             self.skin_cache[name] = meta
             return meta
@@ -192,7 +195,7 @@ class YTBMusicUI:
     def _create_menu(self):
         """Create retro ASCII menu with quick select."""
         menu_items = []
-        
+
         # Title
         title = [
             "",
@@ -203,31 +206,32 @@ class YTBMusicUI:
             "              · Terminal Music Player ·",
             "",
         ]
-        
+
         for line in title:
-            menu_items.append(urwid.Text(line, align='center'))
-        
+            menu_items.append(urwid.Text(line, align="center"))
+
         self.menu_walker = urwid.SimpleFocusListWalker(menu_items)
-        
+
         # Section 1: Playlists
         self.menu_walker.append(urwid.Text(""))
         self.menu_walker.append(urwid.Divider("═"))
-        self.menu_walker.append(urwid.AttrMap(
-            urwid.Text("  ♪  SELECT PLAYLIST (Numbers 1-9)", align='left'),
-            'title'
-        ))
+        self.menu_walker.append(
+            urwid.AttrMap(
+                urwid.Text("  ♪  SELECT PLAYLIST (Numbers 1-9)", align="left"), "title"
+            )
+        )
         self.menu_walker.append(urwid.Divider("─"))
-        
+
         if not self.playlists:
             self.menu_walker.append(urwid.Text(""))
-            self.menu_walker.append(urwid.AttrMap(
-                urwid.Text("     No playlists found!", align='center'),
-                'error'
-            ))
-            self.menu_walker.append(urwid.Text(
-                "     Add .json files to playlists/ folder", 
-                align='center'
-            ))
+            self.menu_walker.append(
+                urwid.AttrMap(
+                    urwid.Text("     No playlists found!", align="center"), "error"
+                )
+            )
+            self.menu_walker.append(
+                urwid.Text("     Add .json files to playlists/ folder", align="center")
+            )
         else:
             for i, pl_name in enumerate(self.playlists[:9]):  # Max 9 for quick select
                 meta = self._get_playlist_metadata(pl_name)
@@ -235,30 +239,31 @@ class YTBMusicUI:
                     display = f"    [{i+1}] {meta.name} ({meta.track_count} tracks)"
                 else:
                     display = f"    [{i+1}] {pl_name} (error)"
-                
+
                 btn = urwid.Button(display)
-                urwid.connect_signal(btn, 'click', self._on_playlist_select, i)
-                self.menu_walker.append(urwid.AttrMap(btn, None, focus_map='highlight'))
-        
+                urwid.connect_signal(btn, "click", self._on_playlist_select, i)
+                self.menu_walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+
         # Section 2: Skins
         self.menu_walker.append(urwid.Text(""))
         self.menu_walker.append(urwid.Divider("═"))
-        self.menu_walker.append(urwid.AttrMap(
-            urwid.Text("  🎨  SELECT SKIN (Letters A-J)", align='left'),
-            'title'
-        ))
+        self.menu_walker.append(
+            urwid.AttrMap(
+                urwid.Text("  🎨  SELECT SKIN (Letters A-J)", align="left"), "title"
+            )
+        )
         self.menu_walker.append(urwid.Divider("─"))
-        
+
         if not self.skins:
             self.menu_walker.append(urwid.Text(""))
-            self.menu_walker.append(urwid.AttrMap(
-                urwid.Text("     No skins found!", align='center'),
-                'error'
-            ))
-            self.menu_walker.append(urwid.Text(
-                "     Add .txt files to skins/ folder", 
-                align='center'
-            ))
+            self.menu_walker.append(
+                urwid.AttrMap(
+                    urwid.Text("     No skins found!", align="center"), "error"
+                )
+            )
+            self.menu_walker.append(
+                urwid.Text("     Add .txt files to skins/ folder", align="center")
+            )
         else:
             letters = "ABCDEFGHIJ"
             for i, skin_name in enumerate(self.skins[:10]):  # Max 10
@@ -267,43 +272,49 @@ class YTBMusicUI:
                     display = f"    [{letters[i]}] {meta.name}"
                 else:
                     display = f"    [{letters[i]}] {skin_name}"
-                
+
                 if i == self.current_skin_idx:
                     display += " ← Current"
-                
+
                 btn = urwid.Button(display)
-                urwid.connect_signal(btn, 'click', self._on_skin_select, i)
-                self.menu_walker.append(urwid.AttrMap(btn, None, focus_map='highlight'))
-        
+                urwid.connect_signal(btn, "click", self._on_skin_select, i)
+                self.menu_walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+
         # Footer with stats
         self.menu_walker.append(urwid.Text(""))
         self.menu_walker.append(urwid.Divider("═"))
-        
+
         # Calculate total tracks (using cache)
-        total_tracks = sum(
-            meta.track_count for meta in [
-                self._get_playlist_metadata(p) for p in self.playlists
-            ] if meta
-        ) if self.playlists else 0
-        
+        total_tracks = (
+            sum(
+                meta.track_count
+                for meta in [self._get_playlist_metadata(p) for p in self.playlists]
+                if meta
+            )
+            if self.playlists
+            else 0
+        )
+
         info = f"  {len(self.playlists)} playlists  ·  {total_tracks} tracks  ·  {len(self.skins)} skins"
-        self.menu_walker.append(urwid.AttrMap(
-            urwid.Text(info, align='center'),
-            'info'
-        ))
-        
+        self.menu_walker.append(urwid.AttrMap(urwid.Text(info, align="center"), "info"))
+
         self.menu_walker.append(urwid.Text(""))
-        self.menu_walker.append(urwid.AttrMap(
-            urwid.Text("  ↑/↓ Navigate  •  Enter/Number/Letter Select  •  Q Quit", align='center'),
-            'status'
-        ))
-        
+        self.menu_walker.append(
+            urwid.AttrMap(
+                urwid.Text(
+                    "  ↑/↓ Navigate  •  Enter/Number/Letter Select  •  Q Quit",
+                    align="center",
+                ),
+                "status",
+            )
+        )
+
         return urwid.ListBox(self.menu_walker)
 
     def _create_loading_widget(self, message: str):
         """Create animated loading screen."""
         frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        
+
         loading_text = [
             "",
             "",
@@ -313,21 +324,21 @@ class YTBMusicUI:
             "",
             "",
         ]
-        
+
         return urwid.Filler(
-            urwid.Pile([urwid.Text(line, align='center') for line in loading_text]),
-            valign='middle'
+            urwid.Pile([urwid.Text(line, align="center") for line in loading_text]),
+            valign="middle",
         )
 
     def _animate_loading(self, loop, data):
         """Animate loading spinner."""
         if self.state != UIState.LOADING:
             return
-        
+
         self.spinner_frame = (self.spinner_frame + 1) % 10
         self.loading_widget = self._create_loading_widget(self.loading_message)
         self.main_widget.original_widget = self.loading_widget
-        
+
         self.spinner_alarm = loop.set_alarm_in(0.1, self._animate_loading)
 
     def _switch_to_loading(self, message: str):
@@ -336,26 +347,26 @@ class YTBMusicUI:
         self.state = UIState.LOADING
         self.loading_message = message
         self.spinner_frame = 0
-        
+
         # Cancel any existing alarms
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
             self.refresh_alarm = None
-        
+
         # Create and show loading widget
         self.loading_widget = self._create_loading_widget(message)
         self.main_widget.original_widget = self.loading_widget
-        
+
         # Start spinner animation
         self.spinner_alarm = self.loop.set_alarm_in(0.1, self._animate_loading)
-        
+
         self.status.set("Loading... Please wait")
 
     def _switch_to_menu(self):
         """Switch to menu state."""
         self.state = UIState.MENU
         self.player.stop()
-        
+
         # Cancel alarms
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
@@ -363,12 +374,12 @@ class YTBMusicUI:
         if self.spinner_alarm:
             self.loop.remove_alarm(self.spinner_alarm)
             self.spinner_alarm = None
-        
+
         # Refresh playlist list
         self.playlists = self.playlist_manager.list_playlists()
         self.menu_widget = self._create_menu()
         self.main_widget.original_widget = self.menu_widget
-        
+
         if self.playlists and self.skins:
             self.status.set("Select playlist (1-9) or skin (A-J) • Q to quit")
         else:
@@ -377,14 +388,14 @@ class YTBMusicUI:
     def _switch_to_player(self):
         """Switch to player state."""
         self.state = UIState.PLAYER
-        
+
         # Cancel spinner if running
         if self.spinner_alarm:
             self.loop.remove_alarm(self.spinner_alarm)
             self.spinner_alarm = None
-        
+
         self.main_widget.original_widget = self.skin_widget
-        
+
         # Start refresh loop
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
@@ -394,10 +405,11 @@ class YTBMusicUI:
         """Handle errors with user-friendly messages."""
         error_msg = str(error)[:60]
         self.status.set(f"❌ Error: {error_msg} • Press M for menu")
-        
+
         # Log error
         print(f"ERROR [{context}]: {error}")
         import traceback
+
         traceback.print_exc()
 
     def _safe_call(self, func, *args, **kwargs):
@@ -412,10 +424,10 @@ class YTBMusicUI:
         """Playlist selected from menu."""
         if not self.playlists or playlist_idx >= len(self.playlists):
             return
-        
+
         self._switch_to_loading("Loading playlist...")
         self.loop.draw_screen()
-        
+
         try:
             self._load_playlist(playlist_idx, auto_play=False)
             self._switch_to_player()
@@ -434,10 +446,10 @@ class YTBMusicUI:
         """Skin selected from menu."""
         if not self.skins or skin_idx >= len(self.skins):
             return
-        
+
         self._switch_to_loading("Loading skin...")
         self.loop.draw_screen()
-        
+
         try:
             self._load_skin(skin_idx)
             self.status.set(f"✓ Skin changed! Select a playlist (1-9) to start")
@@ -454,10 +466,10 @@ class YTBMusicUI:
             self._safe_call(self._load_skin, 0)
         else:
             self.skin_lines = self._create_emergency_skin()
-        
+
         # Show menu
         self._switch_to_menu()
-        
+
         # Run loop
         self.loop.run()
 
@@ -476,7 +488,7 @@ class YTBMusicUI:
             if track:
                 cached_path = self.downloader.is_cached(track.url)
                 self.is_cached_playback = cached_path is not None
-        
+
         context = {
             "PREV": "<<",
             "NEXT": ">>",
@@ -499,7 +511,7 @@ class YTBMusicUI:
             "SHUFFLE_STATUS": "OFF",
             "REPEAT_STATUS": "ALL",
         }
-        
+
         if self.current_playlist:
             track = self.current_playlist.get_current_track()
             if track:
@@ -507,29 +519,35 @@ class YTBMusicUI:
                 context["ARTIST"] = track.artist[:30]
                 context["PLAYLIST"] = self.current_playlist.get_name()[:25]
                 context["TRACK_NUM"] = self.current_playlist.get_position_info()
-                
+
                 # Shuffle/Repeat status
-                context["SHUFFLE_STATUS"] = "ON" if self.current_playlist.shuffle_enabled else "OFF"
-                context["REPEAT_STATUS"] = self.current_playlist.repeat_mode.value.upper()
-                
+                context["SHUFFLE_STATUS"] = (
+                    "ON" if self.current_playlist.shuffle_enabled else "OFF"
+                )
+                context["REPEAT_STATUS"] = (
+                    self.current_playlist.repeat_mode.value.upper()
+                )
+
                 # Next track
                 next_idx = self.current_playlist.current_index + 1
                 if next_idx < self.current_playlist.get_track_count():
                     nt = self.current_playlist.tracks[next_idx]
                     context["NEXT_TRACK"] = nt.title[:30]
-        
+
         info = self.player.get_time_info()
         context["TIME_CURRENT"] = info["current_formatted"]
         context["TIME_TOTAL"] = info["total_formatted"]
         context["TIME"] = f"{info['current_formatted']}/{info['total_formatted']}"
-        
+
         if info["total_duration"] > 0:
             bar_width = 25
             filled = int((info["percentage"] / 100) * bar_width)
             context["PROGRESS"] = "[" + "█" * filled + "░" * (bar_width - filled) + "]"
 
         lines = pad_lines(self.skin_lines, PAD_WIDTH, PAD_HEIGHT)
-        rendered = self.skin_loader.render(lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT)
+        rendered = self.skin_loader.render(
+            lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT
+        )
         self.skin_widget.update("\n".join(rendered))
 
     def _load_skin(self, idx):
@@ -537,17 +555,17 @@ class YTBMusicUI:
         if not self.skins:
             self.skin_lines = self._create_emergency_skin()
             return
-        
+
         if self._loading_skin:
             return
-        
+
         self._loading_skin = True
         try:
             self.current_skin_idx = idx % len(self.skins)
             skin_path = Path("skins") / f"{self.skins[self.current_skin_idx]}.txt"
             meta, lines = self.skin_loader.load(str(skin_path))
             self.skin_lines = pad_lines(lines, PAD_WIDTH, PAD_HEIGHT)
-            
+
             if self.state == UIState.PLAYER:
                 self.status.set(f"Skin: {meta.get('name', '')[:20]} | " + HELP_TEXT)
         except Exception as e:
@@ -601,23 +619,27 @@ class YTBMusicUI:
         if not self.playlists:
             self.current_playlist = None
             return
-        
+
         self.current_playlist_idx = idx % len(self.playlists)
         name = self.playlists[self.current_playlist_idx]
         self.current_playlist = self.playlist_manager.load_playlist(name)
 
     def _play_current_track(self, index):
         """Play track."""
-        if not self.current_playlist or index < 0 or index >= len(self.current_playlist.tracks):
+        if (
+            not self.current_playlist
+            or index < 0
+            or index >= len(self.current_playlist.tracks)
+        ):
             return
-        
+
         track = self.current_playlist.tracks[index]
         self.current_playlist.current_index = index
-        
+
         try:
             # Check cache first
             cached_path = self.downloader.is_cached(track.url)
-            
+
             if cached_path:
                 self.player.play(cached_path)
                 self.is_cached_playback = True
@@ -627,7 +649,7 @@ class YTBMusicUI:
                 self.player.play(stream_url)
                 self.is_cached_playback = False
                 self.status.set(f"♪ {track.title[:35]} (streaming) | " + HELP_TEXT)
-            
+
             self.consecutive_errors = 0
         except Exception as e:
             self.consecutive_errors += 1
@@ -636,7 +658,7 @@ class YTBMusicUI:
                 self.player.stop()
                 self.consecutive_errors = 0
                 return
-            
+
             if not self._next_track():
                 self.player.stop()
 
@@ -644,21 +666,21 @@ class YTBMusicUI:
         """Move to next track."""
         if not self.current_playlist:
             return False
-        
+
         nxt = self.current_playlist.next()
         if nxt:
             self._play_current_track(self.current_playlist.current_index)
             return True
         else:
             self.player.stop()
-            self.status.set('Playlist finished • Press M for menu')
+            self.status.set("Playlist finished • Press M for menu")
             return False
 
     def _prev_track(self):
         """Move to previous track."""
         if not self.current_playlist:
             return
-        
+
         prv = self.current_playlist.previous()
         if prv:
             self._play_current_track(self.current_playlist.current_index)
@@ -680,27 +702,27 @@ class YTBMusicUI:
         if key in ("q", "Q"):
             self.cleanup()
             raise urwid.ExitMainLoop()
-        
+
         # Block input during loading
         if self.state == UIState.LOADING:
             return
-        
+
         # Menu mode
         if self.state == UIState.MENU:
             # Quick select playlist (1-9)
-            if key.isdigit() and '1' <= key <= '9':
+            if key.isdigit() and "1" <= key <= "9":
                 idx = int(key) - 1
                 if idx < len(self.playlists):
                     self._on_playlist_select(None, idx)
-            
+
             # Quick select skin (A-J)
-            elif key.upper() in 'ABCDEFGHIJ':
-                idx = ord(key.upper()) - ord('A')
+            elif key.upper() in "ABCDEFGHIJ":
+                idx = ord(key.upper()) - ord("A")
                 if idx < len(self.skins):
                     self._on_skin_select(None, idx)
-            
+
             return
-        
+
         # Player mode
         if key == " ":
             self.player.toggle_pause()
@@ -736,8 +758,9 @@ class YTBMusicUI:
 
 def main():
     import shutil
+
     cols, lines = shutil.get_terminal_size()
-    
+
     if cols < 80 or lines < 40:
         print(f"\n⚠️  Terminal: {cols}x{lines}")
         print("   Recommended: 80x40 or larger")
@@ -750,6 +773,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Critical Error: {e}")
         import traceback
+
         traceback.print_exc()
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
