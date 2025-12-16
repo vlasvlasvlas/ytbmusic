@@ -1,96 +1,121 @@
-```bash
+```
   ________  ________  ________  _______   ________  ________   ________  ________ 
  ╱    ╱   ╲╱        ╲╱       ╱ ╱       ╲╲╱    ╱   ╲╱        ╲ ╱        ╲╱        ╲
 ╱         ╱        _╱        ╲╱        ╱╱         ╱        _╱_╱       ╱╱         ╱
 ╲__     ╱╱╱       ╱╱         ╱         ╱         ╱-        ╱╱         ╱       --╱ 
   ╲____╱╱ ╲______╱ ╲________╱╲__╱__╱__╱╲________╱╲________╱ ╲________╱╲________╱  
-
 ```
 
-# YTBMusic - Terminal YouTube Music Player
+# YTBMusic
 
-Reproductor de audio desde YouTube en terminal, con playlists y skins ASCII. Optimizado para 80x40; los skins más grandes se filtran.
+**Terminal YouTube Music Player** con playlists, skins ASCII y descarga automática.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Qué hay
-- Skins ASCII validadas para 80x40.
-- Playlists JSON autodetectadas en `playlists/`.
-- Menú retro: números 1-9 para playlist, letras A-J para skin.
-- Streaming + cache con yt-dlp + VLC; muestra progreso de descarga.
-- Overlay con progreso, volumen, siguiente track, shuffle/repeat.
+![Screenshot](screenshot.png)
 
-## Instalación rápida
+---
+
+## ✨ Features
+
+| Feature | Descripción |
+|---------|-------------|
+| 🎵 **Streaming + Cache** | Reproduce desde YouTube, cachea para offline |
+| ⬇️ **Auto-descarga** | Descarga automática en background al iniciar |
+| 📥 **Import YouTube** | Importá playlists completas con `I` |
+| 🎨 **Skins ASCII** | 9+ skins retro intercambiables |
+| 🔀 **Shuffle/Repeat** | Modos de reproducción |
+| 📊 **Footer 3 líneas** | Notificaciones + contexto + shortcuts |
+
+---
+
+## 🚀 Instalación
+
 ```bash
 git clone https://github.com/yourusername/ytbmusic.git
 cd ytbmusic
-
-# macOS (recomendado)
-./install.sh
-
-# Linux (si no usas install.sh)
-sudo apt install vlc   # o tu gestor
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+./install.sh    # macOS/Linux
+./run.sh        # Ejecutar
 ```
-Luego:
-```bash
-./run.sh   # o: source venv/bin/activate && python3 main.py
+
+**Requisitos**: Python 3.8+, VLC, yt-dlp
+
+---
+
+## ⌨️ Controles
+
+### Menú
+| Tecla | Acción |
+|:-----:|--------|
+| `1-9` | Seleccionar playlist |
+| `P` | Reproducir |
+| `X` | Borrar playlist |
+| `I` | Importar de YouTube |
+| `A-J` | Cambiar skin |
+| `Q` | Salir |
+
+### Reproductor
+| Tecla | Acción |
+|:-----:|--------|
+| `Space` | Play/Pause |
+| `N/P` | Next/Prev |
+| `←/→` | Seek ±10s |
+| `↑/↓` | Volumen |
+| `S` | Cambiar skin |
+| `Z` | Shuffle |
+| `R` | Repeat |
+| `M` | Menú |
+| `Q` | Salir |
+
+---
+
+## 📁 Estructura
+
 ```
-Notas macOS: `install.sh` intenta usar VLC arm64 (Homebrew). Si tienes VLC x86, desinstala `/Applications/VLC.app` y reinstala con Homebrew.
+ytbmusic/
+├── playlists/     # Playlists JSON
+├── skins/         # Skins ASCII (80x40 max)
+├── cache/         # Audio cacheado
+├── logs/          # Logs de la app
+└── config/        # Configuración
+```
 
-## Controles
-- Menú: `1-9` elige playlist, `A-J` elige skin, `Q` salir.
-- Player: `Space` play/pause, `N/P` next/prev, `←/→` seek ±10s, `↑/↓` volumen, `S` siguiente skin, `M` volver al menú, `Z` shuffle, `R` repeat, `Q` salir.
-- Descarga: si no hay cache, muestra “Downloading XX.X%”; si falla, hace streaming.
+---
 
-## Playlists
-Coloca archivos `.json` en `playlists/`:
+## 📝 Playlists
+
+Formato JSON en `playlists/`:
 ```json
 {
-  "version": "1.0",
-  "metadata": { "name": "My Mix", "description": "Favorite tracks", "author": "me" },
-  "settings": { "shuffle": false, "repeat": "playlist" },
+  "metadata": { "name": "My Mix" },
   "tracks": [
-    { "title": "Song Title", "artist": "Artist Name", "url": "https://www.youtube.com/watch?v=VIDEO_ID" }
+    { "title": "Song", "artist": "Artist", "url": "https://youtube.com/watch?v=..." }
   ]
 }
 ```
-Opcional por track: `tags`, `duration`. Opcional en settings: `repeat` = `none` | `track` | `playlist`.
 
-## Skins (80x40)
-Solo se listan los skins que no superan 80 columnas x 40 filas. Ejemplos incluidos: `compact`, `clean`, `modern`, `retro`, `minimal_dark`, `compact_info`, `template_example`, `cassette`, `cassette_animated`.
+O importá desde YouTube con la tecla `I`.
 
-Formato de un skin (`skins/myskin.txt`):
-```
 ---
-name: My Custom Skin
-author: you
-version: 1.0
+
+## 🎨 Skins
+
+Skins ASCII en `skins/` (máx 80x40). Placeholders:
+- Requeridos: `{{PREV}} {{PLAY}} {{NEXT}} {{VOL_DOWN}} {{VOL_UP}} {{QUIT}}`
+- Opcionales: `{{TITLE}} {{ARTIST}} {{TIME}} {{PROGRESS}} {{VOLUME}}`
+
 ---
-... ASCII ...
-```
-Placeholders requeridos (al menos una vez):  
-`{{PREV}} {{PLAY}} {{NEXT}} {{VOL_DOWN}} {{VOL_UP}} {{QUIT}}`
 
-Placeholders opcionales admitidos:  
-`{{TITLE}} {{ARTIST}} {{ALBUM}} {{TIME}} {{TIME_CURRENT}} {{TIME_TOTAL}} {{PROGRESS}} {{VOLUME}} {{STATUS}} {{NEXT_TRACK}} {{PLAYLIST}} {{TRACK_NUM}} {{SHUFFLE}} {{REPEAT}} {{CACHE_STATUS}} {{SHUFFLE_STATUS}} {{REPEAT_STATUS}}`
+## 🐛 Problemas comunes
 
-Reglas:
-- Máx 80 cols x 40 filas. Si es mayor, no se mostrará.
-- Usa fuente monoespaciada. El loader recorta/padrea; evita que el arte quede demasiado grande.
-- Puedes usar `skins/template_example.txt` como guía.
+| Problema | Solución |
+|----------|----------|
+| VLC no encontrado | `brew reinstall --cask vlc` |
+| yt-dlp desactualizado | `pip install --upgrade yt-dlp` |
+| ASCII roto | Terminal ≥ 80x40, fuente mono |
 
-## Configuración
-- `config/default_config.json` – playback/cache/ui.
-- `config/keybindings.json` – atajos por acción.
-- `config/state.json` – estado persistente (último skin, volumen, etc.).
+---
 
-## Problemas comunes
-- **VLC no encontrado / x86 en macOS**: `brew reinstall --cask vlc` y borra el VLC x86.  
-- **python-vlc/libvlc**: asegúrate de usar arm64 en Apple Silicon.  
-- **yt-dlp**: `pip install --upgrade yt-dlp`.  
-- **ASCII roto**: terminal monoespaciada; tamaño ≥ 80x40; usa skins validados.
+## 📄 Licencia
 
-## Licencia
 MIT
