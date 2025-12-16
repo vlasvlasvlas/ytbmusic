@@ -155,7 +155,10 @@ if __name__ == "__main__":
     try:
         while player.is_playing():
             info = player.get_time_info()
-            print(f"\r{info['current_formatted']} / {info['total_formatted']} ({info['percentage']:.1f}%)", end="")
+            print(
+                f"\r{info['current_formatted']} / {info['total_formatted']} ({info['percentage']:.1f}%)",
+                end="",
+            )
             time.sleep(1)
     except KeyboardInterrupt:
         player.stop()

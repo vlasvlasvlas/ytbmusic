@@ -9,7 +9,7 @@ from ui.skin_loader import SkinLoader
 
 
 HELP_TEXT = "Space=Play/Pause  N/P=Next/Prev  ←/→=Seek  ↑/↓=Vol  S=Skin  L=Next  Q=Quit"
-PAD_WIDTH = 78   # Changed from 80
+PAD_WIDTH = 78  # Changed from 80
 PAD_HEIGHT = 38  # Changed from 40
 
 
@@ -24,11 +24,11 @@ def pad_lines(lines, width=PAD_WIDTH, height=PAD_HEIGHT):
         if len(line) < width:
             line = line + " " * (width - len(line))
         padded.append(line)
-    
+
     # Ensure we have exactly height lines
     while len(padded) < height:
         padded.append(" " * width)
-    
+
     return padded[:height]
 
 
@@ -129,19 +129,23 @@ class YTBMusicUI:
                 if next_idx < self.current_playlist.get_track_count():
                     nt = self.current_playlist.tracks[next_idx]
                     context["NEXT_TRACK"] = nt.title[:20]
-        
+
         info = self.player.get_time_info()
         context["TIME_CURRENT"] = info["current_formatted"]
         context["TIME_TOTAL"] = info["total_formatted"]
         context["TIME"] = f"{info['current_formatted']}/{info['total_formatted']}"
-        
+
         if info["total_duration"] > 0:
             bar_width = 20  # Smaller progress bar
             filled = int((info["percentage"] / 100) * bar_width)
-            context["PROGRESS"] = "[" + "=" * filled + ">" + " " * (bar_width - filled - 1) + "]"
+            context["PROGRESS"] = (
+                "[" + "=" * filled + ">" + " " * (bar_width - filled - 1) + "]"
+            )
 
         lines = pad_lines(self.skin_lines, PAD_WIDTH, PAD_HEIGHT)
-        rendered = self.skin_loader.render(lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT)
+        rendered = self.skin_loader.render(
+            lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT
+        )
         self.skin_widget.update("\n".join(rendered))
 
     def _load_skin(self, idx):
@@ -152,7 +156,9 @@ class YTBMusicUI:
         try:
             meta, lines = self.skin_loader.load(str(skin_path))
             self.skin_lines = pad_lines(lines, PAD_WIDTH, PAD_HEIGHT)
-            self.status.set(f"Skin: {meta.get('name', skin_path.stem)[:20]} | " + HELP_TEXT)
+            self.status.set(
+                f"Skin: {meta.get('name', skin_path.stem)[:20]} | " + HELP_TEXT
+            )
         except Exception as e:
             self.skin_lines = pad_lines([], PAD_WIDTH, PAD_HEIGHT)
             self.status.set(f"Skin error: {str(e)[:30]}")
@@ -178,7 +184,11 @@ class YTBMusicUI:
         self.status.set(f"Playlist: {name[:15]} | " + HELP_TEXT)
 
     def _play_current_track(self, index):
-        if not self.current_playlist or index < 0 or index >= len(self.current_playlist.tracks):
+        if (
+            not self.current_playlist
+            or index < 0
+            or index >= len(self.current_playlist.tracks)
+        ):
             return
         track = self.current_playlist.tracks[index]
         self.current_playlist.current_index = index
@@ -197,7 +207,7 @@ class YTBMusicUI:
             self.status.set(f"Error, skipping... | " + HELP_TEXT)
             if not self._next_track():
                 self.player.stop()
-                self.status.set('End of playlist. | ' + HELP_TEXT)
+                self.status.set("End of playlist. | " + HELP_TEXT)
 
     def _next_track(self):
         if not self.current_playlist:
@@ -208,7 +218,7 @@ class YTBMusicUI:
             return True
         else:
             self.player.stop()
-            self.status.set('Playlist finished. | ' + HELP_TEXT)
+            self.status.set("Playlist finished. | " + HELP_TEXT)
             return False
 
     def _prev_track(self):
@@ -256,6 +266,7 @@ class YTBMusicUI:
 
 def main():
     import shutil
+
     cols, lines = shutil.get_terminal_size()
     if cols < 80 or lines < 40:
         print(f"\n⚠️  Terminal: {cols}x{lines}")
