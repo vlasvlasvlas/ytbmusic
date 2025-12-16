@@ -119,10 +119,14 @@ def add_track(
     return track
 
 
+MAX_PLAYLIST_TRACKS = 30  # Limit to prevent huge downloads
+
+
 def import_playlist_from_youtube(
     url: str,
     playlist_name: Optional[str] = None,
-    overwrite: bool = False
+    overwrite: bool = False,
+    max_tracks: int = MAX_PLAYLIST_TRACKS
 ) -> Dict:
     """
     Import all items from a YouTube playlist (metadata only).
@@ -131,9 +135,10 @@ def import_playlist_from_youtube(
         url: YouTube playlist URL
         playlist_name: Optional name for the new playlist (defaults to yt title)
         overwrite: If True, replace existing playlist content
+        max_tracks: Maximum number of tracks to import (default: 30)
     
     Returns:
-        Dict with summary: {name, count, added, skipped, added_items}
+        Dict with summary: {name, count, added, skipped, added_items, truncated}
     """
     downloader = YouTubeDownloader()
     info = downloader.extract_playlist_items(url)
@@ -150,8 +155,17 @@ def import_playlist_from_youtube(
     added = 0
     skipped = 0
     added_items = []
+    truncated = False
+    
+    items = info.get("items", [])
+    original_count = len(items)
+    
+    # Apply track limit
+    if len(items) > max_tracks:
+        items = items[:max_tracks]
+        truncated = True
 
-    for item in info.get("items", []):
+    for item in items:
         if item["url"] in existing_urls:
             skipped += 1
             continue
@@ -169,11 +183,13 @@ def import_playlist_from_youtube(
     save_playlist(name, data)
     return {
         "name": name,
-        "count": len(info.get("items", [])),
+        "count": original_count,
         "added": added,
         "skipped": skipped,
         "source": info.get("source_url", url),
         "added_items": added_items,
+        "truncated": truncated,
+        "max_tracks": max_tracks,
     }
 
 
@@ -224,5 +240,34 @@ def list_tracks(name: str) -> List[Dict]:
     try:
         data = load_playlist(name)
         return data.get("tracks", [])
+    except Exception:
+        return []
+def get_missing_tracks(playlist_name: str) -> List[Dict]:
+    """
+    Identify tracks in a playlist that are not yet downloaded/cached.
+    
+    Args:
+        playlist_name: Name of the playlist
+        
+    Returns:
+        List of track dictionaries that need downloading
+    """
+    from core.downloader import YouTubeDownloader
+    
+    try:
+        data = load_playlist(playlist_name)
+        tracks = data.get("tracks", [])
+        if not tracks:
+            return []
+            
+        downloader = YouTubeDownloader()
+        missing = []
+        
+        for track in tracks:
+            url = track.get("url")
+            if url and not downloader.is_cached(url):
+                missing.append(track)
+                
+        return missing
     except Exception:
         return []
