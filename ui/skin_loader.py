@@ -431,34 +431,78 @@ class SkinLoader:
         return valid
     
     @staticmethod
-    def validate_skin(skin_path: str) -> Tuple[bool, str]:
+    def validate_skin(skin_path: str) -> Tuple[bool, List[str]]:
         """
-        Validate a skin file without loading it completely.
+        Validate a skin file and return specific errors.
         
         Returns:
-            Tuple of (is_valid, error_message)
+            Tuple of (is_valid, list_of_errors)
         """
-        try:
-            # quick raw dimension check before full load
-            max_w, max_h = SkinLoader._raw_dimensions(skin_path)
-            if max_w > CANVAS_WIDTH or max_h > CANVAS_HEIGHT:
-                return False, f"Skin exceeds canvas {CANVAS_WIDTH}x{CANVAS_HEIGHT} (got {max_w}x{max_h})"
-            loader = SkinLoader()
-            loader.load(skin_path)
-            return True, "Skin is valid!"
-        except Exception as e:
-            return False, str(e)
-
-    @staticmethod
-    def _raw_dimensions(skin_path: str) -> Tuple[int, int]:
-        """Return max width and height of the raw skin file (before fitting)."""
+        errors = []
         try:
             with open(skin_path, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
-            max_w = max((len(l) for l in lines), default=0)
-            return max_w, len(lines)
-        except Exception:
-            return 0, 0
+                content = f.read()
+            
+            # 1. Frontmatter check
+            mode = 'freestyle'  # default
+            try:
+                # Simple check for --- markers
+                if content.startswith("---\n"):
+                    loader = SkinLoader()
+                    metadata, body = loader._parse_frontmatter(content)
+                    mode = metadata.get('mode', 'freestyle')
+                else:
+                    body = content
+            except Exception as e:
+                errors.append(f"YAML Error: {str(e)}")
+                body = content
+
+            # 2. Dimensions check
+            lines = body.splitlines()
+            for i, line in enumerate(lines):
+                 # Visual width check (approximate due to unicode)
+                 if len(line) > CANVAS_WIDTH:
+                     errors.append(f"Line {i+1} too long: {len(line)} chars (max {CANVAS_WIDTH})")
+            
+            if len(lines) > CANVAS_HEIGHT:
+                errors.append(f"Too many lines: {len(lines)} (max {CANVAS_HEIGHT})")
+
+            # 3. Placeholder check (only for freestyle mode)
+            if mode == 'freestyle':
+                missing = []
+                for p in SkinLoader.REQUIRED_PLACEHOLDERS:
+                    if p not in body:
+                        missing.append(p)
+                if missing:
+                    errors.append(f"Missing required placeholders: {', '.join(missing)}")
+
+            return len(errors) == 0, errors
+
+        except Exception as e:
+            return False, [f"File error: {str(e)}"]
+
+    def create_error_skin(self, errors: List[str]) -> List[str]:
+        """Generate a skin that displays the errors to the user."""
+        lines = []
+        lines.append("╔════════════════════════════════════════════════════════════════════════════╗")
+        lines.append("║                           SKIN ERROR REPORT                                ║")
+        lines.append("║                                                                            ║")
+        lines.append("║  The selected skin could not be loaded. Please fix the following issues:   ║")
+        lines.append("║                                                                            ║")
+        
+        for err in errors[:15]:  # Limit to 15 errors to fit
+            # Truncate to fit width
+            msg = f" • {err}"[:74]
+            lines.append(f"║ {msg:<74} ║")
+            
+        if len(errors) > 15:
+            lines.append(f"║  ... and {len(errors)-15} more errors.                                     ║")
+            
+        lines.append("║                                                                            ║")
+        lines.append("║  Press 'S' to switch skins, or edit the file to fix it.                    ║")
+        lines.append("╚════════════════════════════════════════════════════════════════════════════╝")
+        
+        return self._fit_to_canvas(lines)
 
 
 if __name__ == '__main__':
@@ -467,20 +511,23 @@ if __name__ == '__main__':
     
     if len(sys.argv) > 1:
         skin_path = sys.argv[1]
-        is_valid, message = SkinLoader.validate_skin(skin_path)
+        is_valid, errors = SkinLoader.validate_skin(skin_path)
         
         if is_valid:
-            print(f"✅ {message}")
+            print(f"✅ Skin is valid!")
             loader = SkinLoader()
             metadata, lines = loader.load(skin_path)
             print(f"\nSkin: {metadata.get('name', 'Unknown')}")
             print(f"Author: {metadata.get('author', 'Unknown')}")
             print(f"Size: {loader.max_width}x{loader.max_height}")
         else:
-            print(f"❌ {message}")
+            print("❌ Skin has errors:")
+            for e in errors:
+                print(f"  - {e}")
             sys.exit(1)
     else:
         print("Usage: python skin_loader.py <skin_path>")
         print("\nAvailable skins:")
         for skin in SkinLoader.list_available_skins():
             print(f"  - {skin}")
+

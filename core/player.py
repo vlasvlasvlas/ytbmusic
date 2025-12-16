@@ -9,16 +9,8 @@ from pathlib import Path
 from typing import Dict
 
 import vlc
+from core.logger import setup_logging
 
-log_dir = Path(__file__).parent.parent / "logs"
-log_dir.mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(log_dir / "player.log"),
-    ],
-)
 logger = logging.getLogger("MusicPlayer")
 
 

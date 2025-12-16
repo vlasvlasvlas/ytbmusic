@@ -8,32 +8,74 @@ import yt_dlp
 from pathlib import Path
 from typing import Dict, Optional, Callable
 import hashlib
+import logging
+import os
+from core.logger import setup_logging
+
+logger = logging.getLogger("YouTubeDownloader")
 
 
 class YouTubeDownloader:
     """Manages YouTube audio downloads and streaming URL extraction."""
     
+    # Estimated size per track in bytes (5MB average for audio)
+    ESTIMATED_TRACK_SIZE = 5 * 1024 * 1024
+    
     def __init__(self, cache_dir: str = 'cache'):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
+        
+        # Suppress yt-dlp console output completely
+        self._null_logger = logging.getLogger('yt-dlp')
+        self._null_logger.setLevel(logging.CRITICAL)
         
         # yt-dlp options for extracting info without downloading
         self.ydl_opts_info = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'logger': self._null_logger,
         }
         
         # yt-dlp options for downloading
         self.ydl_opts_download = {
-            'format': 'bestaudio/best',
-            'quiet': False,
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'quiet': True,
             'no_warnings': True,
+            'noprogress': True,
+            'logger': self._null_logger,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'm4a',
             }]
         }
+        
+        logger.info("YouTubeDownloader initialized")
+    
+    def check_disk_space(self, track_count: int) -> tuple:
+        """
+        Check if there's enough disk space for downloading tracks.
+        
+        Args:
+            track_count: Number of tracks to download
+            
+        Returns:
+            Tuple of (has_enough_space: bool, available_mb: float, required_mb: float)
+        """
+        import shutil
+        
+        try:
+            disk_usage = shutil.disk_usage(self.cache_dir)
+            available_bytes = disk_usage.free
+            required_bytes = track_count * self.ESTIMATED_TRACK_SIZE
+            
+            available_mb = available_bytes / (1024 * 1024)
+            required_mb = required_bytes / (1024 * 1024)
+            
+            return available_bytes >= required_bytes, available_mb, required_mb
+        except Exception:
+            # If we can't check, assume it's fine
+            return True, 0, 0
     
     def extract_info(self, url: str) -> Dict:
         """
