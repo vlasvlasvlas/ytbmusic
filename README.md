@@ -28,6 +28,7 @@
 | 🎨 **Skins ASCII** | 9+ skins retro intercambiables y personalizables. |
 | 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición (Playlist/Track). |
 | 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
+| 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer (Starfield, Waves, Equalizer). [Ver Guía](ANIMATIONS.md). |
 | 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
 
 ---
@@ -96,11 +97,13 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 |:-----:|--------|
 | `Space` | Play/Pause |
 | `N` / `P` | Next / Previous Track |
-| `T` | Abrir lista de temas (Track Picker) |
+| `T` | Abrir lista de temas (Track Picker, `/` para buscar) |
 | `D` | Descargar todos los tracks faltantes de la playlist actual |
 | `←` / `→` | Seek ±10s |
 | `↑` / `↓` | Volumen |
 | `S` | Cambiar Skin (rotativo) |
+| `A` | Activar/Desactivar Animación |
+| `V` | Cambiar Animación (rotativo) |
 | `Z` | Shuffle (On/Off) |
 | `R` | Repeat (Playlist/Track/Off) |
 | `M` | Volver al Menú Principal |
@@ -115,6 +118,7 @@ ytbmusic/
 ├── core/          # Player/Downloader/Playlist/DownloadManager
 ├── playlists/     # Archivos .json con la metadata de tus listas
 ├── skins/         # Archivos de texto para los diseños ASCII
+├── animations/    # Archivos de texto para visualizaciones ASCII
 ├── cache/         # Archivos de audio descargados (.m4a/webm)
 ├── logs/          # Logs rotativos de la aplicación (ytbmusic.log)
 ├── dist/          # Binarios compilados (si ejecutas build.py)
@@ -123,6 +127,7 @@ ytbmusic/
 ```
 
 **Nota sobre borrar playlists:** borrar una playlist elimina `playlists/<name>.json` pero **no** borra los audios ya descargados en `cache/`.
+La app puede ofrecer borrar cache “no usado” al momento de borrar una playlist.
 
 ---
 

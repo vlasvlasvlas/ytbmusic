@@ -1,0 +1,36 @@
+---
+name: Sound Waves
+author: ytbmusic
+fps: 5
+width: 4
+height: 3
+---
+FRAME_1:
+ ∿ ∿
+∿ ∿ 
+ ∿ ∿
+
+FRAME_2:
+∿ ∿ 
+ ∿ ∿
+∿ ∿ 
+
+FRAME_3:
+~ ~ 
+ ~ ~
+~ ~ 
+
+FRAME_4:
+ ~ ~
+~ ~ 
+ ~ ~
+
+FRAME_5:
+≈ ≈ 
+ ≈ ≈
+≈ ≈ 
+
+FRAME_6:
+ ≈ ≈
+≈ ≈ 
+ ≈ ≈
