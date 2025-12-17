@@ -1,0 +1,40 @@
+name: CI Verification
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  verify:
+    name: Verify Code & Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install black pyinstaller
+
+    - name: Check Code Formatting (Black)
+      run: |
+        black --check . --exclude venv
+
+    - name: Verify Build (Linux)
+      run: |
+        python build.py
+        # Check if output exists
+        if [ ! -f "dist/ytbmusic-linux/ytbmusic" ]; then
+          echo "Build failed: Executable not found"
+          exit 1
+        fi

@@ -266,7 +266,9 @@ def get_missing_tracks(playlist_name: str) -> List[Dict]:
 
         for track in tracks:
             url = track.get("url")
-            if url and not downloader.is_cached(url):
+            title = track.get("title")
+            artist = track.get("artist")
+            if url and not downloader.is_cached(url, title=title, artist=artist):
                 missing.append(track)
 
         return missing
