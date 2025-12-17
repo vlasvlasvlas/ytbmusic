@@ -1,6 +1,7 @@
 import logging
 import sys
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
 
 def setup_logging():
@@ -16,7 +17,9 @@ def setup_logging():
         format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
-            logging.FileHandler(log_file, encoding="utf-8"),
+            RotatingFileHandler(
+                log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            ),
             # We do NOT add StreamHandler because it would mess up Urwid UI
         ],
     )
