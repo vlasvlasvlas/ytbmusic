@@ -1,88 +1,170 @@
-# Cómo crear animaciones para YTBMusic
+# 🌊 Guía de Animaciones ASCII
 
-Guía para crear visualizaciones ASCII personalizadas que se muestran en el footer del reproductor.
-
----
-
-## Ubicación
-
-Tus archivos de animación deben guardarse en la carpeta `animations/` con extensión `.txt`.
+Crea visualizaciones dinámicas que acompañen tu música en el footer del reproductor.
 
 ---
 
-## Estructura del Archivo
+## ⚡ Quick Start
 
-Cada archivo consta de dos partes:
-1. **Metadata (Frontmatter)**: Configuración en formato YAML.
-2. **Frames**: Los cuadros de la animación separados por marcadores `FRAME_N:`.
-
-### Ejemplo Básico (`simple_wave.txt`)
+1. Crea un archivo en `animations/` (ej: `mypulse.txt`).
+2. Pega este contenido:
 
 ```yaml
 ---
-name: Simple Wave
-author: Tu Nombre
-fps: 5
+name: My Pulse
+author: Me
+fps: 10
+width: 6
+height: 3
+---
+FRAME_1:
+• . . 
+ . . .
+. . • 
+
+FRAME_2:
+● • . 
+ • . .
+. • ● 
+
+FRAME_3:
+O ● • 
+ ● • .
+• ● O 
+```
+3. Ejecuta `./run.sh`, reproduce música y presiona **'A'**.
+
+---
+
+## 📐 Concepto Clave: "El Azulejo" (Tile)
+
+No necesitas dibujar 120 caracteres de ancho. YTBMusic repetirá tu dibujo horizontalmente para llenar cualquier pantalla automáticamente.
+
+**Tu dibujo (4 columnas):**
+```
+ / \ 
+|   |
+ \ / 
+```
+
+**Lo que ve el usuario (Pantalla infinita):**
+```
+ / \  / \  / \  / \  / \  / \ 
+|   ||   ||   ||   ||   ||   |
+ \ /  \ /  \ /  \ /  \ /  \ / 
+```
+
+> **Tip:** Diseña pensando en que "la derecha se conecta con la izquierda".
+
+---
+
+## 📝 Referencia de Formato
+
+### 1. Cabecera (Metadata)
+Va al principio del archivo entre `---`.
+
+| Campo | Descripción |
+|-------|-------------|
+| `name` | Nombre visible en el footer. |
+| `fps` | Velocidad (Frames por segundo). 8-12 es fluido. |
+| `width` | El ancho exacto de tu dibujo (ej: 4, 8, 12). |
+| `height`| **Siempre 3**. Es la altura fija del footer. |
+
+### 2. Frames
+Separados por el marcador `FRAME_N:`.
+```
+FRAME_1:
+(dibujo de 3 líneas)
+
+FRAME_2:
+(dibujo de 3 líneas)
+```
+
+---
+
+## 💡 Ideas y Ejemplos
+
+### Idea 1: Matrix Digital
+*Un flujo de datos binarios.*
+
+```yaml
+---
+name: Binary Flow
+fps: 8
+width: 6
+height: 3
+---
+FRAME_1:
+0 1 0 
+1 0 1 
+0 1 0 
+
+FRAME_2:
+1 0 1 
+0 1 0 
+1 0 1 
+```
+
+### Idea 2: Old School Load
+*Barras de carga clásicas.*
+
+```yaml
+---
+name: Loading
+fps: 6
+width: 8
+height: 3
+---
+FRAME_1:
+ ▒▒▒▒   
+ ▒▒▒▒   
+ ▒▒▒▒   
+
+FRAME_2:
+   ▒▒▒▒ 
+   ▒▒▒▒ 
+   ▒▒▒▒ 
+```
+
+### Idea 3: Equalizer Simple
+*Simulación de espectro de audio.*
+
+```yaml
+---
+name: Mini EQ
+fps: 10
 width: 4
 height: 3
 ---
 FRAME_1:
- ∿ ∿
-∿ ∿ 
- ∿ ∿
+ ▄  
+ █  
+ ▀  
 
 FRAME_2:
-∿ ∿ 
- ∿ ∿
-∿ ∿ 
+  ▄ 
+ ▄█ 
+  ▀ 
+
+FRAME_3:
+ ▄▄ 
+ ██ 
+ ▀▀ 
 ```
 
 ---
 
-## Explicación de Campos
+## 🎹 Controles
 
-### Metadata
-- `name`: Nombre que aparecerá en la interfaz.
-- `author`: Tu nombre.
-- `fps`: Cuadros por segundo (velocidad). Recomendado: 5-10.
-- `width`: Ancho del patrón de tu animación (ver Dynamic Tiling abajo).
-- `height`: **Debe ser 3**. El footer tiene una altura fija de 3 líneas.
-
-### Frames
-- Usa `FRAME_1:`, `FRAME_2:`, etc.
-- Deja una línea en blanco entre el marcador y el dibujo si lo deseas, pero el contenido debe ser consecutivo.
-- El sistema rotará entre los frames definidos.
+| Tecla | Acción |
+|:-----:|--------|
+| **`A`** | Activar / Desactivar animación |
+| **`V`** | Cambiar visual (`Next`) |
 
 ---
 
-## Dynamic Tiling (Repetición Automática)
-
-Para asegurar que tu animación llene pantallas de cualquier tamaño (desde laptops hasta monitores ultrawide), el sistema usa **Dynamic Tiling**.
-
-### Cómo funciona
-1. Creas un **patrón pequeño** (ej: 4, 8 o 10 caracteres de ancho).
-2. El sistema repetirá ese patrón horizontalmente hasta llenar todo el ancho de la terminal.
-
-### Recomendación
-Diseña patrones que sean "tileables" (que el final conincida con el principio) para que no se noten los cortes.
-
-#### Buen ejemplo (Tileable):
-```
- █▄  ▄█ 
- ██  ██ 
- ██  ██ 
-```
-Si lo repites (` █▄  ▄█  █▄  ▄█ ...`) se ve continuo.
-
-#### Mal ejemplo (No tileable):
-```
-[ ---- ]
-```
-Al repetirlo quedaría `[ ---- ][ ---- ]`, lo cual puede ser intencional o no.
-
----
-
-## Controles en la App
-
-- **`A`**: Activar / Desactivar animaciones (Toggle).
-- **`V`**: Cambiar a la siguiente animación disponible (Cycle).
+## 🛠 Trucos Pro
+- Usa caracteres "block element" (`█ ▄ ▀ ▌ ▐ ░ ▒ ▓`) para diseños sólidos.
+- Usa Braille (`⡇⣆⣀`) para detalles finos.
+- Usa caracteres matemáticos (`∫ ∑ ≈ ≠ ≤`) para ondas abstractas.
+- Mantén el `width` par (4, 8, 16) para que los ciclos visuales sean más fáciles de calcular mentalmente.
