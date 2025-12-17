@@ -1,0 +1,51 @@
+---
+name: Mountain Sunset
+author: ytbmusic
+version: 1.0
+mode: template
+zones:
+  title: {line: 9, col: 5, width: 50}
+  artist: {line: 10, col: 5, width: 50}
+  time: {line: 12, col: 5, width: 13}
+  progress: {line: 13, col: 5, width: 55}
+  track_num: {line: 12, col: 55, width: 10}
+  playlist: {line: 15, col: 5, width: 30}
+  next_track: {line: 16, col: 5, width: 40}
+  cache_status: {line: 17, col: 12, width: 1}
+  shuffle_status: {line: 17, col: 30, width: 3}
+  repeat_status: {line: 17, col: 48, width: 8}
+  volume: {line: 21, col: 35, width: 3}
+  status: {line: 12, col: 25, width: 1}
+  buttons:
+    prev: {line: 20, col: 12, width: 2}
+    play: {line: 20, col: 30, width: 2}
+    next: {line: 20, col: 48, width: 2}
+    vol_down: {line: 21, col: 25, width: 1}
+    vol_up: {line: 21, col: 45, width: 1}
+    quit: {line: 23, col: 60, width: 1}
+---
+                                    _.--"""--._                        *    .  
+         *              .       .-~            ~-.    *                  .     
+    .           *           .-~    .-"""-.       ~-.          *     .         
+              .          .-~   .-~        ~-.       ~-.     *                 
+    *                  .-~   .-~ * .    .    ~-.       ~-.            .    *  
+        .           .-~___.-~    ._/\     *   . ~-.___   ~-.                  
+                .-~~    ___/\    /    \  .    /\___    ~~-.  ~-.              
+         ___.-~~    ___/\   /\  /  /\  \    /\/   /\___    ~~-.___.          
+╔═══════════════════════════════════════════════════════════════════════╗
+║                                                                       ║
+║                                                                       ║
+║───────────────────────────────────────────────────────────────────────║
+║                                                                       ║
+║  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   ║
+║                                                                       ║
+║                                                                       ║
+║                                                                       ║
+║  Cache:      Shuffle:             Repeat:                             ║
+║───────────────────────────────────────────────────────────────────────║
+║                                                                       ║
+║       [ ◀◀ ]        [ ▶ ]        [ ▶▶ ]                               ║
+║                  [ - ]       [ + ]                                    ║
+║                                                                       ║
+║  ░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░        [ Q ]       ║
+╚═══════════════════════════════════════════════════════════════════════╝
