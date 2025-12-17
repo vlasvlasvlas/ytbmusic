@@ -35,8 +35,12 @@
 ```bash
 git clone https://github.com/yourusername/ytbmusic.git
 cd ytbmusic
-./install.sh    # macOS/Linux
+./install.sh    # macOS/Linux (instala dependencias)
 ./run.sh        # Ejecutar
+
+# Windows:
+install.bat
+run.bat
 ```
 
 **Requisitos**: Python 3.8+, VLC, yt-dlp
