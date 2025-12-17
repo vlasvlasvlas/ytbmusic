@@ -3,6 +3,7 @@ import time
 import signal
 import shutil
 import threading
+import queue
 from pathlib import Path
 from enum import Enum
 from dataclasses import dataclass
@@ -10,11 +11,13 @@ from typing import Dict, Optional
 
 from core.player import MusicPlayer, PlayerState
 from core.downloader import YouTubeDownloader
+from core.download_manager import DownloadManager, new_request_id
 from core.playlist import PlaylistManager, RepeatMode
 from core.playlist_editor import (
     import_playlist_from_youtube,
     list_playlists,
     get_missing_tracks,
+    delete_playlist,
 )
 
 from core.logger import setup_logging
@@ -23,7 +26,7 @@ from ui.skin_loader import SkinLoader
 logger = setup_logging()
 
 
-HELP_TEXT = "Space=Play/Pause N/P=Next/Prev ←/→=Seek ↑/↓=Vol S=Skin Z=Shuffle R=Repeat M=Menu Q=Quit"
+HELP_TEXT = "Space=Play/Pause N/P=Next/Prev ←/→=Seek ↑/↓=Vol T=Tracks S=Skin Z=Shuffle R=Repeat M=Menu Q=Quit"
 PAD_WIDTH = 120
 PAD_HEIGHT = 88
 SKIN_HOTKEYS = "ABCDFGHJKL"  # skip E/I to leave E for Rename and I for Import
@@ -77,7 +80,7 @@ class SkinWidget(urwid.WidgetWrap):
 class StatusBar(urwid.WidgetWrap):
     """Three-line status bar: notification (optional) + context + shortcuts."""
 
-    SHORTCUTS = "Space=⏯  N/P=⏭⏮  ↑↓=Vol  ←→=Seek  S=Skin  M=Menu  Q=Quit"
+    SHORTCUTS = "Space=⏯  N/P=⏭⏮  ↑↓=Vol  ←→=Seek  T=Tracks  S=Skin  M=Menu  Q=Quit"
 
     def __init__(self, context_text):
         self.notification = urwid.Text("", align="center")
@@ -235,6 +238,53 @@ class InputDialog(urwid.WidgetWrap):
             return super().keypress(size, key)
 
 
+class TrackPickerDialog(urwid.WidgetWrap):
+    """Scrollable track picker overlay for the current playlist."""
+
+    def __init__(self, title: str, tracks: list, current_idx: int, on_select, on_cancel):
+        self._on_select = on_select
+        self._on_cancel = on_cancel
+
+        header = urwid.Text(("title", f" {title} — Select a track "), align="center")
+        hint = urwid.Text(" Enter=Play  Esc/T=Close  ↑/↓=Navigate ", align="center")
+
+        rows = urwid.SimpleFocusListWalker([])
+        for i, tr in enumerate(tracks):
+            artist = (getattr(tr, "artist", "") or "").strip()
+            ttitle = (getattr(tr, "title", "") or "").strip()
+            label = f"{i+1:>3}. "
+            if i == current_idx:
+                label += "▶ "
+            if getattr(tr, "is_playable", True) is False:
+                label += "✗ "
+            if artist and ttitle:
+                label += f"{artist} - {ttitle}"
+            else:
+                label += ttitle or artist or "Unknown"
+
+            btn = urwid.Button(label)
+            urwid.connect_signal(btn, "click", lambda b, idx=i: self._on_select(idx))
+            rows.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+
+        self._listbox = urwid.ListBox(rows)
+        if rows:
+            try:
+                rows.set_focus(max(0, min(int(current_idx), len(rows) - 1)))
+            except Exception:
+                pass
+
+        # Use Frame to avoid flow/box sizing issues (ListBox is BOX, Text is FLOW).
+        frame = urwid.Frame(body=self._listbox, header=header, footer=hint)
+        box = urwid.LineBox(frame)
+        super().__init__(box)
+
+    def keypress(self, size, key):
+        if key in ("esc", "t", "T"):
+            self._on_cancel()
+            return None
+        return super().keypress(size, key)
+
+
 class YTBMusicUI:
     def __init__(self):
         # Core components
@@ -284,11 +334,33 @@ class YTBMusicUI:
         self.is_cached_playback = False
         self.is_buffering = False
         self.skin_hotkeys = SKIN_HOTKEYS
+        # Background download state (driven by DownloadManager events)
+        self.bg_download_active = False
+        self.bg_download_current = 0
+        self.bg_download_total = 0
         self.bg_download_title = ""
         self.bg_download_artist = ""
         self.bg_download_playlist = ""
         self.bg_download_progress = None
         self.bg_download_current_url = None
+        self.bg_download_queue_size = 0
+        self.bg_download_failures = []
+
+        # Download manager (single worker, priority queue)
+        self._download_events: "queue.Queue[dict]" = queue.Queue()
+        self._download_event_alarm = None
+        self._download_request_summary: Dict[str, Dict[str, int]] = {}
+        self._active_download_request_id: Optional[str] = None
+        self._auto_download_request_id = new_request_id("AUTO")
+        self._pending_autoplay: Optional[Dict[str, str]] = None
+        self._player_overlay_active = False
+
+        self.download_manager = DownloadManager(
+            self.downloader,
+            event_callback=self._download_events.put,
+            progress_throttle_sec=0.25,
+        )
+        self.download_manager.start()
 
         # Widgets
         self.skin_widget = SkinWidget()
@@ -732,6 +804,7 @@ class YTBMusicUI:
 
     def _switch_to_menu(self):
         self.state = UIState.MENU
+        self._player_overlay_active = False
         self.player.stop()
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
@@ -762,6 +835,7 @@ class YTBMusicUI:
 
     def _switch_to_player(self):
         self.state = UIState.PLAYER
+        self._player_overlay_active = False
         if self.spinner_alarm:
             self.loop.remove_alarm(self.spinner_alarm)
             self.spinner_alarm = None
@@ -835,6 +909,206 @@ class YTBMusicUI:
     def log_activity(self, message: str, style="info"):
         """Log to the scrolling message log."""
         self.message_log.log(message, style)
+
+    def _start_download_event_pump(self):
+        """Drain DownloadManager events on the main loop (thread-safe)."""
+        if getattr(self, "_download_event_alarm", None):
+            return
+        self._download_event_alarm = self.loop.set_alarm_in(
+            0.1, self._process_download_events
+        )
+
+    def _process_download_events(self, loop=None, user_data=None):
+        # Clear the handle first to avoid duplicate scheduling if handler is slow
+        self._download_event_alarm = None
+
+        try:
+            while True:
+                try:
+                    event = self._download_events.get_nowait()
+                except queue.Empty:
+                    break
+                self._handle_download_event(event)
+        finally:
+            # Keep pumping while app is alive
+            if hasattr(self, "loop") and self.loop:
+                self._download_event_alarm = self.loop.set_alarm_in(
+                    0.1, self._process_download_events
+                )
+
+    def _handle_download_event(self, event: dict):
+        etype = event.get("type")
+        request_id = event.get("request_id")
+
+        if request_id:
+            summary = self._download_request_summary.setdefault(
+                request_id, {"total": 0, "done": 0, "failed": 0, "canceled": 0}
+            )
+            if "total" in event and isinstance(event["total"], int):
+                summary["total"] = max(summary["total"], event["total"])
+
+        if etype == "queue":
+            rid = request_id or ""
+            added = event.get("added", 0)
+            qsize = event.get("queue_size", 0)
+            logger.info(f"[DL {rid}] queued +{added} (queue={qsize})")
+            return
+
+        if etype == "cancel_all":
+            logger.info("[DL] cancel_all")
+            self.bg_download_active = False
+            self.bg_download_progress = None
+            self.bg_download_current_url = None
+            self.bg_download_queue_size = 0
+            self.status.clear_notify()
+            return
+
+        if etype == "start":
+            task = event.get("task")
+            self._active_download_request_id = request_id
+            self.bg_download_active = True
+            self.bg_download_current = int(event.get("position", 0) or 0)
+            self.bg_download_total = int(event.get("total", 0) or 0)
+            self.bg_download_queue_size = int(event.get("queue_size", 0) or 0)
+            self.bg_download_title = getattr(task, "title", "") if task else ""
+            self.bg_download_artist = getattr(task, "artist", "") if task else ""
+            self.bg_download_playlist = getattr(task, "playlist", "") if task else ""
+            self.bg_download_current_url = getattr(task, "url", None) if task else None
+            self.bg_download_progress = None
+
+            label = event.get("label") or ""
+            rid = request_id or ""
+            logger.info(
+                f"[DL {rid}] start {self.bg_download_current}/{self.bg_download_total} "
+                f"[{self.bg_download_playlist}] {self.bg_download_title}"
+            )
+            if label:
+                self.log_activity(f"{label}: downloading…", "info")
+
+            # If importing, keep the LOADING message meaningful
+            if self.state == UIState.LOADING and self._pending_autoplay:
+                pl = self._pending_autoplay.get("playlist", "")
+                if pl and pl == self._pending_autoplay.get("playlist"):
+                    self._update_loading_message(
+                        f"Downloading 1/{self.bg_download_total}: {self.bg_download_title[:35]}"
+                    )
+
+            self._notify_bg_download_status()
+            return
+
+        if etype == "progress":
+            self.bg_download_progress = float(event.get("percent", 0.0))
+            self.bg_download_queue_size = int(event.get("queue_size", 0) or 0)
+            self._notify_bg_download_status()
+
+            if self.state == UIState.LOADING and self._pending_autoplay:
+                self._update_loading_message(
+                    f"Downloading {self.bg_download_current}/{self.bg_download_total}: "
+                    f"{self.bg_download_title[:35]} ({self.bg_download_progress:.0f}%)"
+                )
+            return
+
+        if etype == "complete":
+            task = event.get("task")
+            rid = request_id or ""
+            if rid:
+                self._download_request_summary.setdefault(
+                    rid, {"total": 0, "done": 0, "failed": 0, "canceled": 0}
+                )["done"] += 1
+            title = getattr(task, "title", "") if task else ""
+            logger.info(f"[DL {rid}] complete: {title}")
+            if title:
+                self.log_activity(f"Downloaded: {title}", "success")
+            if self.state == UIState.MENU:
+                self._refresh_menu_counts()
+
+            # Autoplay after import: start playback when first track is ready
+            if self._pending_autoplay and task and getattr(task, "url", None):
+                if task.url == self._pending_autoplay.get("first_url"):
+                    pl_name = self._pending_autoplay.get("playlist", "")
+                    self._pending_autoplay = None
+                    self._load_playlist_by_name(pl_name)
+                    self._switch_to_player()
+                    self.loop.set_alarm_in(0.1, lambda l, d: self._start_playback())
+            return
+
+        if etype == "canceled":
+            task = event.get("task")
+            rid = request_id or ""
+            if rid:
+                self._download_request_summary.setdefault(
+                    rid, {"total": 0, "done": 0, "failed": 0, "canceled": 0}
+                )["canceled"] += 1
+            title = getattr(task, "title", "") if task else ""
+            logger.info(f"[DL {rid}] canceled: {title}")
+            return
+
+        if etype == "error":
+            task = event.get("task")
+            rid = request_id or ""
+            if rid:
+                self._download_request_summary.setdefault(
+                    rid, {"total": 0, "done": 0, "failed": 0, "canceled": 0}
+                )["failed"] += 1
+            title = getattr(task, "title", "") if task else ""
+            err = event.get("error", "")
+            logger.error(f"[DL {rid}] failed: {title} - {err}")
+            if title:
+                self.log_activity(f"Failed: {title}", "error")
+
+            # Persist "unplayable" for known cases so we don't retry forever
+            if task and getattr(task, "playlist", ""):
+                reason = None
+                task_title = getattr(task, "title", "") or ""
+                err_l = (err or "").lower()
+                if task_title in ["[Private video]", "[Deleted video]"]:
+                    reason = task_title
+                elif "private" in err_l and "video" in err_l:
+                    reason = "[Private video]"
+                elif "deleted" in err_l and "video" in err_l:
+                    reason = "[Deleted video]"
+                elif "video unavailable" in err_l:
+                    reason = "Video unavailable"
+
+                if reason:
+                    try:
+                        self.playlist_manager.mark_track_unplayable(
+                            task.playlist, task.url, reason
+                        )
+                    except Exception:
+                        pass
+
+            # If the first track of an import fails, don't leave the user stuck in LOADING
+            if self._pending_autoplay and task and getattr(task, "url", None):
+                if task.url == self._pending_autoplay.get("first_url"):
+                    pl_name = self._pending_autoplay.get("playlist", "")
+                    self._pending_autoplay = None
+                    self._load_playlist_by_name(pl_name)
+                    self._switch_to_player()
+                    self.loop.set_alarm_in(0.1, lambda l, d: self._start_playback())
+            return
+
+        if etype == "idle":
+            # Queue drained
+            self.bg_download_active = False
+            self.bg_download_progress = None
+            self.bg_download_current_url = None
+            self.bg_download_queue_size = 0
+
+            rid = self._active_download_request_id
+            if rid and rid in self._download_request_summary:
+                s = self._download_request_summary[rid]
+                total = s.get("total", 0) or self.bg_download_total
+                done = s.get("done", 0)
+                failed = s.get("failed", 0)
+                if total:
+                    if failed:
+                        self.status.notify(f"✓ Done: {done}/{total} ({failed} failed)")
+                    else:
+                        self.status.notify(f"✓ All {done}/{total} downloaded!")
+                    self.loop.set_alarm_in(5.0, lambda l, d: self.status.clear_notify())
+            self._active_download_request_id = None
+            return
 
     def _prompt_import_playlist(self):
         """Show dialog to import a YouTube playlist."""
@@ -932,70 +1206,24 @@ class YTBMusicUI:
             self.loop.set_alarm_in(0.3, lambda l, d: self._start_playback())
             return
 
-        # Download first track in thread, then play
-        self._download_first_and_play(pl_name, missing)
+        # Highest priority: download this playlist now, then autoplay when track 1 is ready
+        first_url = missing[0].get("url") if missing else None
+        if first_url:
+            self._pending_autoplay = {"playlist": pl_name, "first_url": first_url}
+
+        self._update_loading_message(
+            f"Queued {len(missing)} track(s) from '{pl_name}' for download..."
+        )
+        self._start_background_downloads(
+            missing, start_delay=0.0, default_playlist=pl_name, force_reset=True
+        )
 
     def _on_import_error(self, error_msg):
         """Called when import thread fails."""
         self._handle_error(Exception(error_msg), "import_playlist")
         self._switch_to_menu()
 
-    def _download_first_and_play(self, pl_name, missing_tracks):
-        """Download first track in thread, start playback, then bg download rest."""
-        # Prioritize the new playlist: stop any other background queue
-        self._cancel_background_downloads()
-
-        first_track = missing_tracks[0]
-        self._update_loading_message(
-            f"Downloading: {first_track.get('title', 'Unknown')}"
-        )
-        self.status.notify(
-            f"⬇️ {pl_name}: {first_track.get('artist','')} - {first_track.get('title','')}"
-        )
-
-        def download_first():
-            try:
-                logger.info(
-                    f"[THREAD] Downloading first track: {first_track.get('title')}"
-                )
-                self.downloader.download(
-                    first_track["url"],
-                    title=first_track.get("title"),
-                    artist=first_track.get("artist"),
-                )
-                logger.info(f"[THREAD] First track done!")
-                self.loop.set_alarm_in(
-                    0,
-                    lambda l, d: self._on_first_download_complete(
-                        pl_name, missing_tracks[1:]
-                    ),
-                )
-            except Exception as e:
-                logger.error(f"[THREAD] First track failed: {e}")
-                self.loop.set_alarm_in(
-                    0,
-                    lambda l, d: self._on_first_download_complete(
-                        pl_name, missing_tracks[1:]
-                    ),
-                )
-
-        self.download_thread = threading.Thread(target=download_first, daemon=True)
-        self.download_thread.start()
-        # No need for manual polling; we are in LOADING state so _animate_loading is handling the spinner
-        # self.loop.set_alarm_in(0.5, self._check_download_thread)
-
-    # _check_download_thread removed as it was redundant with _animate_loading
-
-    def _on_first_download_complete(self, pl_name, remaining_tracks):
-        """Start playback and background downloads."""
-        self._load_playlist_by_name(pl_name)
-        self._switch_to_player()
-        self.loop.set_alarm_in(0.3, lambda l, d: self._start_playback())
-
-        if remaining_tracks:
-            self._start_background_downloads(
-                remaining_tracks, default_playlist=pl_name, force_reset=True
-            )
+    # First-track download is handled via DownloadManager + _pending_autoplay
 
     def _load_playlist_by_name(self, name: str):
         """Load a playlist by name and set as current."""
@@ -1009,73 +1237,98 @@ class YTBMusicUI:
         default_playlist: str = "",
         force_reset: bool = False,
     ):
-        """Download tracks in background using alarms (non-blocking feel)."""
+        """Enqueue background downloads through DownloadManager."""
         if not tracks:
             return
 
+        delay = max(float(start_delay), 0.0)
+        if delay > 0:
+            self.loop.set_alarm_in(
+                delay,
+                lambda l, d: self._start_background_downloads(
+                    tracks, start_delay=0.0, default_playlist=default_playlist, force_reset=force_reset
+                ),
+            )
+            return
+
+        # Priority model:
+        # - force_reset: user wants focus now (highest)
+        # - default_playlist: user is playing something (high)
+        # - otherwise: auto-download (low)
+        if force_reset:
+            priority = 0
+            request_id = new_request_id("FOCUS")
+            label = f"Download '{default_playlist}'" if default_playlist else "Download"
+            replace = True
+            cancel_in_progress = True
+        elif default_playlist:
+            priority = 10
+            request_id = new_request_id("PLAY")
+            label = f"Prefetch '{default_playlist}'"
+            replace = False
+            cancel_in_progress = False
+        else:
+            priority = 100
+            request_id = self._auto_download_request_id
+            label = "Auto-download"
+            replace = False
+            cancel_in_progress = False
+
+        # Skip known-unusable items early
         prepared = []
+        skipped = 0
         for t in tracks:
-            if not t.get("url"):
+            if not t or not t.get("url"):
+                continue
+            title = t.get("title") or ""
+            if title in ["[Private video]", "[Deleted video]"]:
+                skipped += 1
+                pl_name = t.get("_playlist") or default_playlist or ""
+                if pl_name:
+                    try:
+                        self.playlist_manager.mark_track_unplayable(pl_name, t["url"], title)
+                    except Exception:
+                        pass
                 continue
             item = dict(t)
             if default_playlist and not item.get("_playlist"):
                 item["_playlist"] = default_playlist
             prepared.append(item)
-        if not prepared:
-            return
 
-        # If already downloading, either append or restart based on flag
-        if getattr(self, "bg_download_active", False):
-            if force_reset:
-                self._cancel_background_downloads()
+        added = self.download_manager.enqueue(
+            prepared,
+            request_id=request_id,
+            priority=priority,
+            default_playlist=default_playlist,
+            replace=replace,
+            cancel_in_progress=cancel_in_progress,
+            label=label,
+        )
+
+        if skipped:
+            self.log_activity(f"Skipped {skipped} unusable track(s)", "error")
+
+        if added:
+            self.log_activity(f"{label}: queued {added} track(s)", "info")
+            if default_playlist:
+                self.status.notify(f"⬇️ Queued {added} track(s) from {default_playlist}")
             else:
-                existing_urls = {t.get("url") for t in self.bg_download_queue}
-                if self.bg_download_current_url:
-                    existing_urls.add(self.bg_download_current_url)
-                new_items = [t for t in prepared if t.get("url") not in existing_urls]
-                if not new_items:
-                    return
-                self.bg_download_queue.extend(new_items)
-                self.bg_download_total += len(new_items)
-                self._notify_bg_download_status()
-                return
-
-        # Fresh queue
-        self.bg_download_queue = prepared
-        self.bg_download_total = len(prepared)
-        self.bg_download_current = 0
-        self.bg_download_failures = []
-        self.bg_download_active = True
-        self.bg_download_title = ""
-        self.bg_download_artist = ""
-        self.bg_download_playlist = ""
-        self.bg_download_progress = None
-        self.bg_download_current_url = None
-
-        # Start first background download after a delay
-        delay = max(start_delay, 0.0)
-        if self.bg_download_total > 0:
-            pl_label = (
-                default_playlist if default_playlist else self.bg_download_playlist
-            )
-            self.log_activity(
-                f"Queued {self.bg_download_total} downloads from '{pl_label}'", "info"
-            )
-            self.status.notify(
-                f"⬇️ Queued {self.bg_download_total} track(s){f' from {pl_label}' if pl_label else ''}"
-            )
-        self.loop.set_alarm_in(delay, self._bg_download_next)
+                self.status.notify(f"⬇️ Queued {added} track(s)")
 
     def _cancel_background_downloads(self):
         """Cancel any ongoing background downloads."""
+        try:
+            self.download_manager.cancel_all(cancel_in_progress=True)
+        except Exception:
+            pass
         self.bg_download_active = False
-        self.bg_download_queue = []
         self.bg_download_progress = None
         self.bg_download_title = ""
         self.bg_download_artist = ""
         self.bg_download_playlist = ""
         self.bg_download_current_url = None
-        logger.info("[BG] Downloads cancelled")
+        self.bg_download_queue_size = 0
+        logger.info("[DL] Downloads cancelled")
 
     def _bg_download_next(self, loop=None, user_data=None):
         """Download next track in background queue using a thread."""
@@ -1296,24 +1549,19 @@ class YTBMusicUI:
             return
 
         pl_name = self.playlists[self.selected_playlist_idx]
-        pl_path = Path("playlists") / f"{pl_name}.json"
 
         def confirm_delete():
             try:
                 # Stop any pending downloads for this playlist
-                if getattr(self, "bg_download_active", False):
-                    self._cancel_background_downloads()
-                else:
-                    if getattr(self, "bg_download_queue", None):
-                        self.bg_download_queue = [
-                            t
-                            for t in self.bg_download_queue
-                            if t.get("_playlist") != pl_name
-                        ]
+                try:
+                    self.download_manager.cancel_playlist(pl_name, cancel_in_progress=True)
+                except Exception:
+                    pass
+                if self._pending_autoplay and self._pending_autoplay.get("playlist") == pl_name:
+                    self._pending_autoplay = None
 
-                if pl_path.exists():
-                    pl_path.unlink()
-                    logger.info(f"Deleted playlist: {pl_name}")
+                delete_playlist(pl_name)
+                logger.info(f"Deleted playlist: {pl_name}")
 
                 # Refresh playlists and menu
                 self.playlists = list_playlists()
@@ -1390,6 +1638,7 @@ class YTBMusicUI:
         else:
             self.skin_lines = self._create_emergency_skin()
         self._switch_to_menu()
+        self._start_download_event_pump()
 
         # Start auto-downloading missing tracks after 2 seconds
         self.loop.set_alarm_in(2.0, lambda l, d: self._start_auto_downloads())
@@ -1417,7 +1666,7 @@ class YTBMusicUI:
             self.status.set("All playlists fully cached! ✓")
 
     def refresh(self, loop=None, data=None):
-        if self.state == UIState.PLAYER:
+        if self.state == UIState.PLAYER or getattr(self, "_player_overlay_active", False):
             self._render_skin()
             if loop:
                 self.refresh_alarm = loop.set_alarm_in(0.2, self.refresh)
@@ -1677,6 +1926,54 @@ class YTBMusicUI:
             self.is_buffering = False
             self._next_track()
 
+    def _show_track_picker(self):
+        """Popup track list to jump to a specific song in the current playlist."""
+        if not self.current_playlist or not self.current_playlist.tracks:
+            return
+
+        pl_name = self.current_playlist.get_name()
+        current_track = self.current_playlist.get_current_track()
+        current_idx = 0
+        if current_track:
+            try:
+                current_idx = next(
+                    i
+                    for i, t in enumerate(self.current_playlist.tracks)
+                    if t.url == current_track.url
+                )
+            except StopIteration:
+                current_idx = 0
+
+        def close_overlay():
+            self._player_overlay_active = False
+            self.state = UIState.PLAYER
+            self.main_widget.original_widget = self.skin_widget
+
+        def on_select(original_idx: int):
+            close_overlay()
+            self.current_playlist.set_position_by_original_index(int(original_idx))
+            self._play_current_track(self.current_playlist.current_index)
+
+        dialog = TrackPickerDialog(
+            pl_name,
+            list(self.current_playlist.tracks),
+            current_idx,
+            on_select,
+            close_overlay,
+        )
+        height = min(30, max(10, len(self.current_playlist.tracks) + 6))
+        overlay = urwid.Overlay(
+            dialog,
+            self.skin_widget,
+            align="center",
+            width=90,
+            valign="middle",
+            height=height,
+        )
+        self._player_overlay_active = True
+        self.state = UIState.EDIT
+        self.main_widget.original_widget = overlay
+
     def _on_track_end_callback(self):
         """Called by VLC when track ends (runs in VLC thread)."""
         # Schedule next track in main thread to avoid urwid thread-safety issues
@@ -1720,6 +2017,14 @@ class YTBMusicUI:
                 self.loop.remove_alarm(self.refresh_alarm)
             if self.spinner_alarm:
                 self.loop.remove_alarm(self.spinner_alarm)
+            if getattr(self, "_download_event_alarm", None):
+                try:
+                    self.loop.remove_alarm(self._download_event_alarm)
+                except Exception:
+                    pass
+                self._download_event_alarm = None
+            if getattr(self, "download_manager", None):
+                self.download_manager.stop(cancel_in_progress=True)
             self.player.cleanup()
         except Exception:
             pass
@@ -1771,7 +2076,8 @@ class YTBMusicUI:
             elif key in ("r", "R"):
                 self._on_random_all()
             elif key in ("e", "E"):
-                self._on_rename_selected()
+                # Defer to next tick so the overlay isn't clobbered by the current input cycle
+                self.loop.set_alarm_in(0, lambda l, d: self._on_rename_selected())
             return
         if key == " ":
             self.player.toggle_pause()
@@ -1779,6 +2085,8 @@ class YTBMusicUI:
             self._next_track()
         elif key in ("p", "P"):
             self._prev_track()
+        elif key in ("t", "T"):
+            self._show_track_picker()
         elif key in ("s", "S"):
             if self.skins:
                 next_idx = (self.current_skin_idx + 1) % len(self.skins)

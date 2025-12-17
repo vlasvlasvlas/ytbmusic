@@ -21,13 +21,14 @@
 | Feature | Descripción |
 |---------|-------------|
 | 🎵 **Streaming + Cache** | Reproducción inmediata. El sistema descarga en segundo plano mientras escuchas. |
-| ⬇️ **Smart Download** | Cola de descarga en hilo secundario (non-blocking). Detecta y salta videos privados. |
+| ⬇️ **Smart Download (DownloadManager)** | Una sola cola + worker con **prioridades** (Import/Play/Auto), **dedupe**, cancelación y progreso throttled (UI fluida). |
 | 📥 **Import YouTube** | Importá playlists completas con `I`. Limpia automática de URLs "Watch with Playlist". |
 | 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
+| 🎼 **Track Picker** | En el reproductor, abrí la lista de temas con `T` y elegí qué reproducir (sin spamear Next). |
 | 🎨 **Skins ASCII** | 9+ skins retro intercambiables y personalizables. |
 | 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición (Playlist/Track). |
 | 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
-| 💾 **Persistencia** | Guarda el estado de tus playlists automáticamente (metadata y tracks inválidos). |
+| 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
 
 ---
 
@@ -39,7 +40,7 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone https://github.com/yourusername/ytbmusic.git
+   git clone https://github.com/vlasvlasvlas/ytbmusic.git
    cd ytbmusic
    ```
 
@@ -95,6 +96,8 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 |:-----:|--------|
 | `Space` | Play/Pause |
 | `N` / `P` | Next / Previous Track |
+| `T` | Abrir lista de temas (Track Picker) |
+| `D` | Descargar todos los tracks faltantes de la playlist actual |
 | `←` / `→` | Seek ±10s |
 | `↑` / `↓` | Volumen |
 | `S` | Cambiar Skin (rotativo) |
@@ -109,6 +112,7 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 
 ```
 ytbmusic/
+├── core/          # Player/Downloader/Playlist/DownloadManager
 ├── playlists/     # Archivos .json con la metadata de tus listas
 ├── skins/         # Archivos de texto para los diseños ASCII
 ├── cache/         # Archivos de audio descargados (.m4a/webm)
@@ -117,6 +121,8 @@ ytbmusic/
 ├── install.sh     # Script instalación *nix
 └── run.sh         # Script ejecución *nix
 ```
+
+**Nota sobre borrar playlists:** borrar una playlist elimina `playlists/<name>.json` pero **no** borra los audios ya descargados en `cache/`.
 
 ---
 
