@@ -918,7 +918,8 @@ class YTBMusicUI:
     def _switch_to_menu(self):
         self.state = UIState.MENU
         self._player_overlay_active = False
-        self.player.stop()
+        # Do NOT stop the player here to allow background playback
+        # self.player.stop()
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
             self.refresh_alarm = None
@@ -1537,6 +1538,15 @@ class YTBMusicUI:
             return
 
         pl_name = self.playlists[self.selected_playlist_idx]
+
+        # Smart Resume: If selecting the active playlist, just go to player view
+        if (
+            self.current_playlist
+            and self.current_playlist.get_name() == pl_name
+        ):
+            self._switch_to_player()
+            return
+
         self.status.set("Loading playlist...")
         try:
             self._load_playlist(self.selected_playlist_idx, auto_play=False)
