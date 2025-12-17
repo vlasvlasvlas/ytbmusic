@@ -25,10 +25,10 @@
 | 📥 **Import YouTube** | Importá playlists completas con `I`. Limpia automática de URLs "Watch with Playlist". |
 | 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
 | 🎼 **Track Picker** | En el reproductor, abrí la lista de temas con `T` y elegí qué reproducir (sin spamear Next). |
-| 🎨 **Skins ASCII** | 9+ skins retro intercambiables y personalizables. |
+| 🎨 **Skins ASCII** | 9+ skins retro intercambiables. [Ver guía de Skins](SKINS.md). |
 | 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición (Playlist/Track). |
 | 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
-| 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer (Starfield, Waves, Equalizer). [Ver Guía](ANIMATIONS.md). |
+| 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer. [Ver guía de Animaciones](ANIMATIONS.md). |
 | 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
 
 ---
@@ -146,6 +146,15 @@ El proyecto está configurado para compilar automáticamente en la nube para **W
 
 ---
 
+## 🎨 Personalización
+ 
+YTBMusic es altamente personalizable. Podes crear tus propios diseños:
+ 
+- **[Guía de Skins](SKINS.md):** Aprende a diseñar interfaces completas (carátulas).
+- **[Guía de Animaciones](ANIMATIONS.md):** Crea visualizaciones (ondas, ecualizadores) para el footer.
+ 
+---
+ 
 ## 📄 Licencia
 
 MIT License. Sentite libre de usarlo y modificarlo.
