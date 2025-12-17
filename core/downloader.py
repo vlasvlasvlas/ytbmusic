@@ -241,6 +241,8 @@ class YouTubeDownloader:
         url: str,
         output_path: Optional[str] = None,
         progress_callback: Optional[Callable] = None,
+        title: Optional[str] = None,
+        artist: Optional[str] = None,
     ) -> str:
         """
         Download audio to cache.
@@ -249,15 +251,21 @@ class YouTubeDownloader:
             url: YouTube video URL
             output_path: Custom output path (optional, uses cache by default)
             progress_callback: Function called with download progress
+            title: Track title for naming (optional)
+            artist: Artist name for naming (optional)
 
         Returns:
             Path to downloaded file
         """
         try:
-            # Generate cache filename from URL
+            # Generate cache filename
             if output_path is None:
                 video_id = self._extract_video_id(url)
-                output_path = str(self.cache_dir / f"{video_id}.%(ext)s")
+                if title:
+                    safe_name = self._make_cache_filename(title, artist)
+                    output_path = str(self.cache_dir / f"{safe_name}.%(ext)s")
+                else:
+                    output_path = str(self.cache_dir / f"{video_id}.%(ext)s")
 
             # Setup progress hook
             opts = self.ydl_opts_download.copy()
@@ -276,22 +284,64 @@ class YouTubeDownloader:
         except Exception as e:
             raise Exception(f"Failed to download {url}: {e}")
 
-    def is_cached(self, url: str) -> Optional[str]:
+    def is_cached(
+        self, url: str, title: Optional[str] = None, artist: Optional[str] = None
+    ) -> Optional[str]:
         """
         Check if a URL is already cached.
 
         Args:
             url: YouTube video URL
+            title: Track title for naming (optional)
+            artist: Artist name for naming (optional)
 
         Returns:
             Path to cached file if exists, None otherwise
         """
+        # Check by artist_title first if provided
+        if title:
+            safe_name = self._make_cache_filename(title, artist)
+            cache_file = self.cache_dir / f"{safe_name}.m4a"
+            if cache_file.exists():
+                return str(cache_file)
+
+        # Fallback to video_id (for backwards compatibility)
         video_id = self._extract_video_id(url)
         cache_file = self.cache_dir / f"{video_id}.m4a"
-
         if cache_file.exists():
             return str(cache_file)
+
         return None
+
+    def _make_cache_filename(self, title: str, artist: Optional[str] = None) -> str:
+        """Create a safe filename from artist and title (alphanumeric + underscore only)."""
+        import re
+
+        # Combine artist and title with a temporary placeholder that won't be stripped
+        if artist and artist != "Unknown Artist":
+            name = f"{artist}__SEP__{title}"
+        else:
+            name = title
+
+        # Keep only alphanumeric, spaces, and the specific separator placeholder
+        # First remove everything that isn't alphanumeric or space or underscore
+        name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
+
+        # Replace the separator with actual underscore (and surrounding spaces if any)
+        name = name.replace("__SEP__", "_")
+
+        # Replace spaces with underscores
+        name = re.sub(r"\s+", "_", name)
+
+        # Cleanup multiple underscores
+        name = re.sub(r"_+", "_", name)
+        name = name.strip("_")
+
+        # Limit length (filesystem limits)
+        if len(name) > 80:
+            name = name[:80]
+
+        return name
 
     def _extract_video_id(self, url: str) -> str:
         """Extract video ID from YouTube URL or generate hash."""

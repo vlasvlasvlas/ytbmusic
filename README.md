@@ -25,12 +25,13 @@
 | 📥 **Import YouTube** | Importá playlists completas con `I` |
 | 🎨 **Skins ASCII** | 9+ skins retro intercambiables |
 | 🔀 **Shuffle/Repeat** | Modos de reproducción |
-| 📊 **Footer 3 líneas** | Notificaciones + contexto + shortcuts |
+| 🎲 **Random All** | Reproducción aleatoria de TODAS las canciones (`R`) |
+| 📊 **Download Stats** | Visualización de progreso en el lista del menú |
+| ℹ️ **Footer 3 líneas** | Notificaciones + contexto + shortcuts |
 
 ---
 
 ## 🚀 Instalación
-
 ```bash
 git clone https://github.com/yourusername/ytbmusic.git
 cd ytbmusic
@@ -51,7 +52,9 @@ cd ytbmusic
 | `P` | Reproducir |
 | `X` | Borrar playlist |
 | `I` | Importar de YouTube |
-| `A-J` | Cambiar skin |
+| `E` | Renombrar Playlist |
+| `R` | Random All Songs |
+| `A-L` | Cambiar skin (excluyendo E/I) |
 | `Q` | Salir |
 
 ### Reproductor
@@ -100,9 +103,41 @@ O importá desde YouTube con la tecla `I`.
 
 ## 🎨 Skins
 
-Skins ASCII en `skins/` (máx 80x40). Placeholders:
+Skins ASCII en `skins/` (máx 80x40). Incluye 9+ skins listos para usar.
+
+**¿Querés crear el tuyo?** → [Guía completa para crear skins](SKINS.md)
+
+Placeholders disponibles:
 - Requeridos: `{{PREV}} {{PLAY}} {{NEXT}} {{VOL_DOWN}} {{VOL_UP}} {{QUIT}}`
 - Opcionales: `{{TITLE}} {{ARTIST}} {{TIME}} {{PROGRESS}} {{VOLUME}}`
+
+---
+
+## 🏗️ Compilación y Releases
+
+### Compilación Local
+Crea un ejecutable standalone (sin depencias de Python) para tu SO actual:
+
+```bash
+python3 build.py
+# El ejecutable quedará en: dist/ytbmusic-[tu-os]/ytbmusic
+```
+
+### GitHub Releases (Automático)
+Este proyecto usa **GitHub Actions** para generar binarios multiplataforma automáticamente.
+
+1.  Hacé tus cambios y commiteá.
+2.  Creá un tag (ej: `v1.0.0`) y subilo:
+    ```bash
+    git tag v1.0.0
+    git push origin v1.0.0
+    ```
+3.  GitHub generará releases para **Windows (.exe)**, **macOS** y **Linux** en la pestaña "Releases".
+
+### CI/CD
+Cada vez que subas código a `main` o hagas un Pull Request, se ejecutarán tests automáticos (`ci.yml`) para verificar:
+- Formato de código (Black)
+- Compilación exitosa (Build Check)
 
 ---
 
