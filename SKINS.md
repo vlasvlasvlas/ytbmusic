@@ -213,4 +213,4 @@ El loader hace esto por vos:
 
 ## Compartí tu skin
 
-¿Creaste un skin copado? Hacé un PR al repo para agregarlo.
+¿Creaste un skin? Hacé un PR al repo para agregarlo!.

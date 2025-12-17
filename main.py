@@ -10,7 +10,7 @@ from typing import Dict, Optional
 
 from core.player import MusicPlayer, PlayerState
 from core.downloader import YouTubeDownloader
-from core.playlist import PlaylistManager
+from core.playlist import PlaylistManager, RepeatMode
 from core.playlist_editor import (
     import_playlist_from_youtube,
     list_playlists,
@@ -1584,7 +1584,7 @@ class YTBMusicUI:
 
         # Respect shuffle order when selecting the track to play
         self.current_playlist.current_index = index
-        track = self.current_playlist.get_track(self.current_playlist_idx)
+        track = self.current_playlist.get_current_track()
         if not track:
             return
 
@@ -1684,22 +1684,35 @@ class YTBMusicUI:
             self.loop.set_alarm_in(0.1, lambda loop, user_data: self._next_track())
 
     def _next_track(self):
-        if not self.current_playlist:
+        if not self.current_playlist or not self.current_playlist.tracks:
             return False
-        nxt = self.current_playlist.next()
-        if nxt:
+
+        # Repeat single track
+        if self.current_playlist.repeat_mode == RepeatMode.TRACK:
             self._play_current_track(self.current_playlist.current_index)
             return True
-        self.player.stop()
-        self.status.set("Playlist finished • Press M for menu")
-        return False
+
+        next_idx = self.current_playlist.current_index + 1
+        if next_idx >= len(self.current_playlist.tracks):
+            if self.current_playlist.repeat_mode == RepeatMode.PLAYLIST:
+                next_idx = 0
+            else:
+                self.player.stop()
+                self.status.set("Playlist finished • Press M for menu")
+                return False
+
+        self._play_current_track(next_idx)
+        return True
 
     def _prev_track(self):
-        if not self.current_playlist:
+        if not self.current_playlist or not self.current_playlist.tracks:
             return
-        prv = self.current_playlist.previous()
-        if prv:
-            self._play_current_track(self.current_playlist.current_index)
+
+        prev_idx = self.current_playlist.current_index - 1
+        if prev_idx < 0:
+            prev_idx = len(self.current_playlist.tracks) - 1
+
+        self._play_current_track(prev_idx)
 
     def cleanup(self):
         try:
