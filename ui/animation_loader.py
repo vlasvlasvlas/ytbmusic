@@ -14,6 +14,7 @@ import urwid
 
 import shutil
 
+
 class AnimationLoader:
     """Loads and plays ASCII animations."""
 
@@ -48,8 +49,7 @@ class AnimationLoader:
         # We don't pad width anymore, we let the widget tile it.
         target_height = self.metadata.get("height", 3)
         self.frames = [
-            self._normalize_frame(frame, target_height)
-            for frame in self.frames
+            self._normalize_frame(frame, target_height) for frame in self.frames
         ]
 
         return self.metadata, self.frames
@@ -150,7 +150,9 @@ class AnimationWidget(urwid.WidgetWrap):
     def __init__(self, height: int = 3):
         self.height = height
         self.loader = AnimationLoader()
-        self.lines: List[urwid.Text] = [urwid.Text("", align="left", wrap="clip") for _ in range(height)]
+        self.lines: List[urwid.Text] = [
+            urwid.Text("", align="left", wrap="clip") for _ in range(height)
+        ]
         self.pile = urwid.Pile(self.lines)
         self.box = urwid.LineBox(self.pile, title="♪ Animation")
         super().__init__(self.box)
@@ -196,7 +198,7 @@ class AnimationWidget(urwid.WidgetWrap):
                 else:
                     repeats = (width // len(line)) + 1
                     tiled_line = (line * repeats)[:width]
-                
+
                 self.lines[i].set_text(tiled_line)
 
     def get_interval(self) -> float:
