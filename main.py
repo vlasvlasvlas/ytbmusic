@@ -105,6 +105,27 @@ class StatusBar(urwid.WidgetWrap):
         self.notification.set_text("")
 
 
+class MessageLog(urwid.WidgetWrap):
+    """Scrolling log widget for download activity."""
+
+    def __init__(self, height=3):
+        self.height = height
+        self.walker = urwid.SimpleListWalker([])
+        self.listbox = urwid.ListBox(self.walker)
+        self.box = urwid.LineBox(self.listbox)
+        super().__init__(self.box)
+
+    def log(self, message: str, style: str = "normal"):
+        """Add a message to the log."""
+        timestamp = time.strftime("%H:%M:%S")
+        txt = urwid.Text((style, f"[{timestamp}] {message}"))
+        self.walker.append(txt)
+        # Scroll to bottom
+        if len(self.walker) > 50:
+            self.walker.pop(0)
+        self.listbox.set_focus(len(self.walker) - 1)
+
+
 class MenuListBox(urwid.ListBox):
     """ListBox that passes certain hotkeys through to unhandled_input."""
 
@@ -274,8 +295,18 @@ class YTBMusicUI:
         self.menu_widget = None
         self.loading_widget = None
         self.status = StatusBar("")
+        self.message_log = MessageLog(height=3)
         self.main_widget = urwid.WidgetPlaceholder(urwid.Text("Initializing..."))
-        frame = urwid.Frame(body=self.main_widget, footer=self.status)
+
+        # Combine message log and status bar in footer
+        footer_pile = urwid.Pile(
+            [
+                ("fixed", 5, self.message_log),  # 3 lines text + 2 borders = 5 lines
+                self.status,  # Flow widget (natural height)
+            ]
+        )
+
+        frame = urwid.Frame(body=self.main_widget, footer=footer_pile)
 
         self.loop = urwid.MainLoop(
             frame,
@@ -796,6 +827,14 @@ class YTBMusicUI:
         msg = self._get_bg_download_status()
         if msg:
             self.status.notify(msg)
+            # Log significant events or errors occasionally?
+            # For now, just keep status bar lively.
+            # But let's log completion:
+            pass
+
+    def log_activity(self, message: str, style="info"):
+        """Log to the scrolling message log."""
+        self.message_log.log(message, style)
 
     def _prompt_import_playlist(self):
         """Show dialog to import a YouTube playlist."""
@@ -813,6 +852,9 @@ class YTBMusicUI:
                 def threaded_import():
                     try:
                         logger.info(f"[THREAD] Starting import for URL: {url}")
+
+                        # We can't safely log to UI from thread directly without loop.set_alarm_in
+                        # but we can rely on the loading message for now.
 
                         result = import_playlist_from_youtube(
                             url, playlist_name=name or None, overwrite=False
@@ -879,6 +921,10 @@ class YTBMusicUI:
         self.status.notify(
             f"⬇️ Imported '{pl_name}': added {result['added']}, skipped {result['skipped']}"
         )
+        self.log_activity(
+            f"Imported '{pl_name}': {result['added']} new, {result['skipped']} skipped",
+            "success",
+        )
 
         if not missing:
             self._load_playlist_by_name(pl_name)
@@ -901,10 +947,10 @@ class YTBMusicUI:
 
         first_track = missing_tracks[0]
         self._update_loading_message(
-            f"Downloading: {first_track.get('title', 'Unknown')[:35]}"
+            f"Downloading: {first_track.get('title', 'Unknown')}"
         )
         self.status.notify(
-            f"⬇️ {pl_name[:20]}: {first_track.get('artist','')} - {first_track.get('title','')[:30]}"
+            f"⬇️ {pl_name}: {first_track.get('artist','')} - {first_track.get('title','')}"
         )
 
         def download_first():
@@ -1010,7 +1056,10 @@ class YTBMusicUI:
         delay = max(start_delay, 0.0)
         if self.bg_download_total > 0:
             pl_label = (
-                default_playlist[:15] if default_playlist else self.bg_download_playlist
+                default_playlist if default_playlist else self.bg_download_playlist
+            )
+            self.log_activity(
+                f"Queued {self.bg_download_total} downloads from '{pl_label}'", "info"
             )
             self.status.notify(
                 f"⬇️ Queued {self.bg_download_total} track(s){f' from {pl_label}' if pl_label else ''}"
@@ -1039,10 +1088,35 @@ class YTBMusicUI:
 
         track = self.bg_download_queue.pop(0)
         self.bg_download_current += 1
-        title = track.get("title", "Unknown")[:20]
+        title = track.get("title", "Unknown")
         artist = track.get("artist", "")
-        playlist = track.get("_playlist", "")[:15]
+        playlist = track.get("_playlist", "")
         self.bg_download_current_url = track.get("url")
+
+        # SOTA Check: Skip unusable tracks (Private/Deleted)
+        if title in ["[Private video]", "[Deleted video]"]:
+            logger.info(f"[BG] Skipping unusable track: {title}")
+            self.loop.set_alarm_in(
+                0, lambda l, d: self.log_activity(f"Skipped: {title}", "error")
+            )
+
+            # Persist this state so we don't try again next time
+            if getattr(self, "current_playlist", None):
+                # We need the playlist name matching the track.
+                # Background downloads might mix playlists if we aren't careful,
+                # but usually they come from 'default_playlist' or 'self.current_playlist'.
+                # The track dict has '_playlist' key if set in _start_background_downloads
+                pl_name = track.get("_playlist")
+                if pl_name:
+                    self.playlist_manager.mark_track_unplayable(
+                        pl_name, track["url"], title
+                    )
+
+            self.bg_download_failures.append(track)
+            # Immediately schedule next download to keep queue alive
+            if self.bg_download_queue and getattr(self, "bg_download_active", False):
+                self.loop.set_alarm_in(0.1, self._bg_download_next)
+            return
 
         # Update notification line (top) for download progress
         self.bg_download_title = title
@@ -1071,12 +1145,20 @@ class YTBMusicUI:
                     artist=track.get("artist"),
                 )
                 logger.info(f"[BG] ✓ Downloaded: {title}")
+                # Log success to UI
+                self.loop.set_alarm_in(
+                    0, lambda l, d: self.log_activity(f"Downloaded: {title}", "success")
+                )
+
                 # Refresh menu if in menu state to update download counts
                 if self.state == UIState.MENU:
                     self.loop.set_alarm_in(0, lambda l, d: self._refresh_menu_counts())
             except Exception as e:
                 self.bg_download_failures.append(track)
                 logger.error(f"[BG] ✗ Failed: {title} - {e}")
+                self.loop.set_alarm_in(
+                    0, lambda l, d: self.log_activity(f"Failed: {title}", "error")
+                )
 
             # Schedule next download in main thread
             if self.bg_download_queue and getattr(self, "bg_download_active", False):
@@ -1502,10 +1584,26 @@ class YTBMusicUI:
 
         # Respect shuffle order when selecting the track to play
         self.current_playlist.current_index = index
-        track = self.current_playlist.get_current_track()
+        track = self.current_playlist.get_track(self.current_playlist_idx)
         if not track:
             return
 
+        # SOTA Check: Skip unusable tracks (Private/Deleted)
+        title = track.title or ""
+        if title in ["[Private video]", "[Deleted video]"]:
+            logger.info(f"Skipping unusable track: {title}")
+            self.status.notify(f"⏭ Skipping {title}...")
+
+            # Persist unplayable state
+            if self.current_playlist and self.current_playlist.metadata.get("name"):
+                self.playlist_manager.mark_track_unplayable(
+                    self.current_playlist.metadata["name"], track.url, title
+                )
+
+            self.loop.set_alarm_in(0.5, lambda l, d: self._next_track())
+            return
+
+        self._update_loading_message(f"Buffering: {track.title}...")
         # Track request ID to handle rapid skipping
         self._play_req_id = getattr(self, "_play_req_id", 0) + 1
         current_req = self._play_req_id
@@ -1517,13 +1615,13 @@ class YTBMusicUI:
             if cached_path:
                 self.player.play(cached_path)
                 self.is_cached_playback = True
-                self.status.set(f"♪ {track.title[:35]} (cached)")
+                self.status.set(f"♪ {track.title} (cached)")
             else:
                 # Stop current playback before streaming
                 self.player.stop()
 
                 # Stream it asynchronously
-                self.status.set(f"Buffering {track.title[:30]}...")
+                self.status.set(f"Buffering {track.title}...")
                 self.is_cached_playback = False
                 self.is_buffering = True
                 # Force instant render to show hourglass
@@ -1573,7 +1671,7 @@ class YTBMusicUI:
         try:
             self.is_buffering = False
             self.player.play(stream_url)
-            self.status.set(f"♪ {track.title[:35]} (streaming) | " + HELP_TEXT)
+            self.status.set(f"♪ {track.title} (streaming) | " + HELP_TEXT)
         except Exception as e:
             logger.error(f"Playback failed: {e}")
             self.is_buffering = False

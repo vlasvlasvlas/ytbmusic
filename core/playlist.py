@@ -29,6 +29,8 @@ class Track:
     url: str
     duration: int = 0
     tags: List[str] = None
+    is_playable: bool = True
+    error_msg: Optional[str] = None
 
     def __post_init__(self):
         if self.tags is None:
@@ -117,6 +119,8 @@ class Playlist:
                 url=track_data["url"],
                 duration=track_data.get("duration", 0),
                 tags=track_data.get("tags", []),
+                is_playable=track_data.get("is_playable", True),
+                error_msg=track_data.get("error_msg"),
             )
             self.tracks.append(track)
 
@@ -125,22 +129,80 @@ class Playlist:
         if self.shuffle_enabled:
             self._create_shuffle_order()
 
+    def to_dict(self) -> Dict:
+        """Convert playlist to a dictionary suitable for JSON serialization."""
+        tracks_data = []
+        for track in self.tracks:
+            track_dict = {
+                "title": track.title,
+                "artist": track.artist,
+                "url": track.url,
+                "duration": track.duration,
+                "tags": track.tags,
+                "is_playable": track.is_playable,
+            }
+            if track.error_msg:
+                track_dict["error_msg"] = track.error_msg
+            tracks_data.append(track_dict)
+
+        settings_data = self.settings.copy()
+        settings_data["shuffle"] = self.shuffle_enabled
+        settings_data["repeat"] = self.repeat_mode.value
+
+        return {
+            "metadata": self.metadata,
+            "settings": settings_data,
+            "tracks": tracks_data,
+        }
+
+    def save_to_file(self, filepath: str):
+        """Save playlist to a JSON file."""
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+
     def _create_shuffle_order(self):
         """Create a shuffled order of track indices."""
         self._shuffle_order = self._original_order.copy()
         random.shuffle(self._shuffle_order)
+
+    def get_track(self, index: int) -> Optional[Track]:
+        """Get track by index, or None if out of bounds."""
+        if 0 <= index < len(self.tracks):
+            return self.tracks[index]
+        return None
 
     def get_current_track(self) -> Optional[Track]:
         """Get the current track."""
         if not self.tracks:
             return None
 
-        if self.shuffle_enabled and self._shuffle_order:
-            actual_index = self._shuffle_order[self.current_index]
-        else:
-            actual_index = self.current_index
+        original_idx = self.current_index  # Store original index to detect full loop
 
-        return self.tracks[actual_index]
+        if self.shuffle_enabled and self._shuffle_order:
+            # Skip unplayable tracks in shuffle
+            while True:
+                if (
+                    not self._shuffle_order
+                ):  # Handle empty shuffle order if tracks were removed
+                    return None
+                real_idx = self._shuffle_order[self.current_index]
+                if self.tracks[real_idx].is_playable:
+                    return self.tracks[real_idx]
+
+                # If unplayable, move to next and prevent infinite loop if all are bad
+                self.current_index = (self.current_index + 1) % len(self.tracks)
+                if self.current_index == original_idx:
+                    return None  # All unplayable
+        else:
+            # Skip unplayable tracks in linear order
+            attempts = 0
+            while attempts < len(self.tracks):
+                track = self.tracks[self.current_index]
+                if track.is_playable:
+                    return track
+                self.current_index = (self.current_index + 1) % len(self.tracks)
+                attempts += 1
+            return None
 
     def next(self) -> Optional[Track]:
         """
