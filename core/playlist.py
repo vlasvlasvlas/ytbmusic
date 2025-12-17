@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import Enum
 import random
 
+from core.playlist_store import PLAYLIST_LOCK, read_json, write_json_atomic
+
 
 class RepeatMode(Enum):
     """Repeat mode options."""
@@ -157,8 +159,9 @@ class Playlist:
 
     def save_to_file(self, filepath: str):
         """Save playlist to a JSON file."""
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+        path = Path(filepath)
+        with PLAYLIST_LOCK:
+            write_json_atomic(path, self.to_dict())
 
     def _create_shuffle_order(self):
         """Create a shuffled order of track indices."""
@@ -374,7 +377,8 @@ class PlaylistManager:
             Loaded playlist
         """
         filepath = self.playlists_dir / f"{name}.json"
-        self.current_playlist = Playlist.from_file(str(filepath))
+        with PLAYLIST_LOCK:
+            self.current_playlist = Playlist.from_file(str(filepath))
         return self.current_playlist
 
     def get_current(self) -> Optional[Playlist]:
@@ -406,28 +410,68 @@ class PlaylistManager:
         if new_path.exists():
             raise FileExistsError(f"Playlist '{new_name}' already exists")
 
-        # 1. Load, update, save
         try:
-            with open(old_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            with PLAYLIST_LOCK:
+                data = read_json(old_path)
+                if "metadata" not in data:
+                    data["metadata"] = {}
+                data["metadata"]["name"] = new_name
 
-            # Update name in metadata
-            if "metadata" not in data:
-                data["metadata"] = {}
-            data["metadata"]["name"] = new_name
+                # Write new file atomically, then remove old (atomic write avoids partial JSON)
+                write_json_atomic(new_path, data)
+                try:
+                    old_path.unlink()
+                except FileNotFoundError:
+                    pass
 
-            with open(old_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-
-            # 2. Rename file
-            old_path.rename(new_path)
-
-            # 3. Update current if needed
-            if self.current_playlist and self.current_playlist.get_name() == old_name:
-                self.current_playlist.metadata["name"] = new_name
-
+                # Update current if needed
+                if self.current_playlist and self.current_playlist.get_name() == old_name:
+                    self.current_playlist.metadata["name"] = new_name
         except Exception as e:
             raise Exception(f"Failed to rename playlist: {e}")
+
+    def mark_track_unplayable(
+        self, playlist_name: str, url: str, reason: Optional[str] = None
+    ) -> bool:
+        """
+        Persist a track as unplayable so playback and downloads can skip it.
+
+        Returns True if a track was updated.
+        """
+        if not playlist_name or not url:
+            return False
+
+        path = self.playlists_dir / f"{playlist_name}.json"
+        if not path.exists():
+            return False
+
+        updated = False
+        with PLAYLIST_LOCK:
+            data = read_json(path)
+            tracks = data.get("tracks", [])
+            for t in tracks:
+                if t.get("url") == url:
+                    t["is_playable"] = False
+                    if reason:
+                        t["error_msg"] = reason
+                    updated = True
+                    break
+            if updated:
+                write_json_atomic(path, data)
+
+        # Keep in-memory current playlist consistent
+        if (
+            updated
+            and self.current_playlist
+            and self.current_playlist.metadata.get("name") == playlist_name
+        ):
+            for tr in self.current_playlist.tracks:
+                if tr.url == url:
+                    tr.is_playable = False
+                    tr.error_msg = reason
+                    break
+
+        return updated
 
 
 if __name__ == "__main__":

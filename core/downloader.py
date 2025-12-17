@@ -305,6 +305,9 @@ class YouTubeDownloader:
             final_path = output_path.replace(".%(ext)s", ".m4a")
             return final_path
 
+        except yt_dlp.utils.DownloadCancelled:
+            # Propagate so callers can treat it as a cancellation (not an error)
+            raise
         except Exception as e:
             raise Exception(f"Failed to download {url}: {e}")
 

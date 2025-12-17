@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from core.downloader import YouTubeDownloader
+from core.playlist_store import PLAYLIST_LOCK, read_json, write_json_atomic
 
 PLAYLISTS_DIR = Path("playlists")
 
@@ -21,16 +22,16 @@ def load_playlist(name: str) -> Dict:
     path = PLAYLISTS_DIR / f"{name}.json"
     if not path.exists():
         raise FileNotFoundError(f"Playlist not found: {name}")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    with PLAYLIST_LOCK:
+        return read_json(path)
 
 
 def save_playlist(name: str, data: Dict):
     """Persist playlist JSON."""
     PLAYLISTS_DIR.mkdir(exist_ok=True)
     path = PLAYLISTS_DIR / f"{name}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    with PLAYLIST_LOCK:
+        write_json_atomic(path, data)
 
 
 def create_playlist(name: str, description: str = "", author: str = "ytbmusic"):
@@ -52,8 +53,9 @@ def create_playlist(name: str, description: str = "", author: str = "ytbmusic"):
 def delete_playlist(name: str):
     """Delete a playlist JSON."""
     path = PLAYLISTS_DIR / f"{name}.json"
-    if path.exists():
-        path.unlink()
+    with PLAYLIST_LOCK:
+        if path.exists():
+            path.unlink()
 
 
 def add_track(
@@ -99,21 +101,22 @@ def add_track(
             artist = artist or "Unknown Artist"
             duration = duration if duration is not None else 0
 
-    # Add track
-    data = load_playlist(playlist_name)
-    if "tracks" not in data:
-        data["tracks"] = []
+    # Add track (atomic read-modify-write under lock)
+    with PLAYLIST_LOCK:
+        data = load_playlist(playlist_name)
+        if "tracks" not in data:
+            data["tracks"] = []
 
-    track = {
-        "title": title,
-        "artist": artist,
-        "url": url,
-        "tags": tags or [],
-        "duration": duration if duration is not None else 0,
-    }
+        track = {
+            "title": title,
+            "artist": artist,
+            "url": url,
+            "tags": tags or [],
+            "duration": duration if duration is not None else 0,
+        }
 
-    data["tracks"].append(track)
-    save_playlist(playlist_name, data)
+        data["tracks"].append(track)
+        save_playlist(playlist_name, data)
 
     return track
 
@@ -143,14 +146,7 @@ def import_playlist_from_youtube(
     info = downloader.extract_playlist_items(url)
 
     name = playlist_name or info.get("title") or "Imported Playlist"
-    # if overwrite, create empty; else load existing or new
-    if overwrite or name not in list_playlists():
-        create_playlist(name, description=f"Imported from {url}")
-    data = load_playlist(name)
-    if "tracks" not in data:
-        data["tracks"] = []
 
-    existing_urls = {t.get("url") for t in data["tracks"]}
     added = 0
     skipped = 0
     added_items = []
@@ -164,22 +160,35 @@ def import_playlist_from_youtube(
         items = items[:max_tracks]
         truncated = True
 
-    for item in items:
-        if item["url"] in existing_urls:
-            skipped += 1
-            continue
-        track_entry = {
-            "title": item.get("title", "Unknown"),
-            "artist": item.get("artist", "Unknown Artist"),
-            "url": item.get("url"),
-            "tags": [],
-            "duration": item.get("duration", 0),
-        }
-        data["tracks"].append(track_entry)
-        added_items.append(track_entry)
-        added += 1
+    # Atomic file operations under lock (avoid corruption with concurrent rename/delete/import)
+    with PLAYLIST_LOCK:
+        pl_path = PLAYLISTS_DIR / f"{name}.json"
+        # if overwrite, create empty; else load existing or new
+        if overwrite or not pl_path.exists():
+            create_playlist(name, description=f"Imported from {url}")
 
-    save_playlist(name, data)
+        data = load_playlist(name)
+        if "tracks" not in data:
+            data["tracks"] = []
+
+        existing_urls = {t.get("url") for t in data["tracks"]}
+
+        for item in items:
+            if item["url"] in existing_urls:
+                skipped += 1
+                continue
+            track_entry = {
+                "title": item.get("title", "Unknown"),
+                "artist": item.get("artist", "Unknown Artist"),
+                "url": item.get("url"),
+                "tags": [],
+                "duration": item.get("duration", 0),
+            }
+            data["tracks"].append(track_entry)
+            added_items.append(track_entry)
+            added += 1
+
+        save_playlist(name, data)
     return {
         "name": name,
         "count": original_count,
@@ -215,13 +224,14 @@ def delete_track(name: str, index: int) -> bool:
         True if deleted successfully
     """
     try:
-        data = load_playlist(name)
-        tracks = data.get("tracks", [])
-        if 0 <= index < len(tracks):
-            tracks.pop(index)
-            save_playlist(name, data)
-            return True
-        return False
+        with PLAYLIST_LOCK:
+            data = load_playlist(name)
+            tracks = data.get("tracks", [])
+            if 0 <= index < len(tracks):
+                tracks.pop(index)
+                save_playlist(name, data)
+                return True
+            return False
     except Exception:
         return False
 
