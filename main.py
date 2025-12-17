@@ -89,9 +89,9 @@ class StatusBar(urwid.WidgetWrap):
         self.top_line = urwid.Text(context_text, align="center")
         self.mid_line = urwid.Text(self.SHORTCUTS_PLAY, align="center")
         self.bot_line = urwid.Text(self.SHORTCUTS_APP, align="center")
-        
+
         self._default_info = context_text
-        
+
         self.pile = urwid.Pile(
             [
                 urwid.AttrWrap(self.top_line, "status"),
@@ -106,7 +106,7 @@ class StatusBar(urwid.WidgetWrap):
         # Clean up any " | HELP_TEXT" that might be passed from legacy calls
         if " | Space=" in text:
             text = text.split(" | Space=")[0]
-        
+
         self.top_line.set_text(text)
         self._default_info = text
 
@@ -1540,10 +1540,7 @@ class YTBMusicUI:
         pl_name = self.playlists[self.selected_playlist_idx]
 
         # Smart Resume: If selecting the active playlist, just go to player view
-        if (
-            self.current_playlist
-            and self.current_playlist.get_name() == pl_name
-        ):
+        if self.current_playlist and self.current_playlist.get_name() == pl_name:
             self._switch_to_player()
             return
 
