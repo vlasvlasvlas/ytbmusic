@@ -425,7 +425,10 @@ class PlaylistManager:
                     pass
 
                 # Update current if needed
-                if self.current_playlist and self.current_playlist.get_name() == old_name:
+                if (
+                    self.current_playlist
+                    and self.current_playlist.get_name() == old_name
+                ):
                     self.current_playlist.metadata["name"] = new_name
         except Exception as e:
             raise Exception(f"Failed to rename playlist: {e}")
