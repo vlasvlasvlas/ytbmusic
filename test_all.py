@@ -98,9 +98,20 @@ try:
     # Test each skin
     for skin_name in skins:
         metadata, lines = loader.load(f"skins/{skin_name}.txt")
-        widths = set(len(line) for line in lines)
-        status = "✅" if len(widths) == 1 else "❌"
-        print(f"  {status} {skin_name}: {len(lines)} lines, width {list(widths)[0]}")
+        is_frames = bool(lines) and isinstance(lines[0], list)
+        if is_frames:
+            frame_widths = {len(line) for frame in lines for line in frame}
+            status = "✅" if len(frame_widths) == 1 else "❌"
+            height = len(lines[0]) if lines else 0
+            print(
+                f"  {status} {skin_name}: {len(lines)} frames, {height} lines, width {list(frame_widths)[0]}"
+            )
+        else:
+            widths = {len(line) for line in lines}
+            status = "✅" if len(widths) == 1 else "❌"
+            print(
+                f"  {status} {skin_name}: {len(lines)} lines, width {list(widths)[0]}"
+            )
 
     # Test rendering
     metadata, lines = loader.load("skins/cassette.txt")
