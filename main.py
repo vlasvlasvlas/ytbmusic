@@ -18,6 +18,7 @@ from core.playlist_editor import (
     list_playlists,
     get_missing_tracks,
     delete_playlist,
+    load_playlist,
 )
 
 from core.logger import setup_logging
@@ -346,7 +347,7 @@ class YTBMusicUI:
         self.bg_download_progress = None
         self.bg_download_current_url = None
         self.bg_download_queue_size = 0
-        self.bg_download_failures = []
+        self.bg_download_kind = ""
 
         # Download manager (single worker, priority queue)
         self._download_events: "queue.Queue[dict]" = queue.Queue()
@@ -876,6 +877,7 @@ class YTBMusicUI:
             return None
         curr = getattr(self, "bg_download_current", 0)
         total = getattr(self, "bg_download_total", 0)
+        kind = (getattr(self, "bg_download_kind", "") or "").strip()
 
         parts = []
         if self.bg_download_playlist:
@@ -894,6 +896,8 @@ class YTBMusicUI:
         )
 
         base = f"⬇️ {curr}/{total}"
+        if kind:
+            base = f"⬇️ {kind} {curr}/{total}"
         if detail:
             return f"{base}: {detail}{percent}"
         return f"{base}{percent}" if percent else base
@@ -962,6 +966,7 @@ class YTBMusicUI:
             self.bg_download_progress = None
             self.bg_download_current_url = None
             self.bg_download_queue_size = 0
+            self.bg_download_kind = ""
             self.status.clear_notify()
             return
 
@@ -977,6 +982,7 @@ class YTBMusicUI:
             self.bg_download_playlist = getattr(task, "playlist", "") if task else ""
             self.bg_download_current_url = getattr(task, "url", None) if task else None
             self.bg_download_progress = None
+            self.bg_download_kind = (request_id or "").split("-", 1)[0]
 
             label = event.get("label") or ""
             rid = request_id or ""
@@ -1096,6 +1102,7 @@ class YTBMusicUI:
             self.bg_download_progress = None
             self.bg_download_current_url = None
             self.bg_download_queue_size = 0
+            self.bg_download_kind = ""
 
             rid = self._active_download_request_id
             if rid and rid in self._download_request_summary:
@@ -1337,121 +1344,6 @@ class YTBMusicUI:
         self.bg_download_queue_size = 0
         logger.info("[DL] Downloads cancelled")
 
-    def _bg_download_next(self, loop=None, user_data=None):
-        """Download next track in background queue using a thread."""
-        # Check if cancelled or queue empty
-        if not getattr(self, "bg_download_active", False):
-            return
-        if not self.bg_download_queue:
-            self._bg_download_complete()
-            return
-
-        track = self.bg_download_queue.pop(0)
-        self.bg_download_current += 1
-        title = track.get("title", "Unknown")
-        artist = track.get("artist", "")
-        playlist = track.get("_playlist", "")
-        self.bg_download_current_url = track.get("url")
-
-        # SOTA Check: Skip unusable tracks (Private/Deleted)
-        if title in ["[Private video]", "[Deleted video]"]:
-            logger.info(f"[BG] Skipping unusable track: {title}")
-            self.loop.set_alarm_in(
-                0, lambda l, d: self.log_activity(f"Skipped: {title}", "error")
-            )
-
-            # Persist this state so we don't try again next time
-            if getattr(self, "current_playlist", None):
-                # We need the playlist name matching the track.
-                # Background downloads might mix playlists if we aren't careful,
-                # but usually they come from 'default_playlist' or 'self.current_playlist'.
-                # The track dict has '_playlist' key if set in _start_background_downloads
-                pl_name = track.get("_playlist")
-                if pl_name:
-                    self.playlist_manager.mark_track_unplayable(
-                        pl_name, track["url"], title
-                    )
-
-            self.bg_download_failures.append(track)
-            # Immediately schedule next download to keep queue alive
-            if self.bg_download_queue and getattr(self, "bg_download_active", False):
-                self.loop.set_alarm_in(0.1, self._bg_download_next)
-            return
-
-        # Update notification line (top) for download progress
-        self.bg_download_title = title
-        self.bg_download_artist = artist
-        self.bg_download_playlist = playlist
-        self.bg_download_progress = None
-        self._notify_bg_download_status()
-
-        # Progress callback for real-time percentage updates
-        def on_progress(percent, downloaded, total):
-            if not getattr(self, "bg_download_active", False):
-                return
-            self.bg_download_progress = percent
-            if hasattr(self, "loop"):
-                self.loop.set_alarm_in(
-                    0, lambda l, d: self._notify_bg_download_status()
-                )
-
-        # Download in a thread
-        def do_download():
-            try:
-                self.downloader.download(
-                    track["url"],
-                    progress_callback=on_progress,
-                    title=track.get("title"),
-                    artist=track.get("artist"),
-                )
-                logger.info(f"[BG] ✓ Downloaded: {title}")
-                # Log success to UI
-                self.loop.set_alarm_in(
-                    0, lambda l, d: self.log_activity(f"Downloaded: {title}", "success")
-                )
-
-                # Refresh menu if in menu state to update download counts
-                if self.state == UIState.MENU:
-                    self.loop.set_alarm_in(0, lambda l, d: self._refresh_menu_counts())
-            except Exception as e:
-                self.bg_download_failures.append(track)
-                logger.error(f"[BG] ✗ Failed: {title} - {e}")
-                self.loop.set_alarm_in(
-                    0, lambda l, d: self.log_activity(f"Failed: {title}", "error")
-                )
-
-            # Schedule next download in main thread
-            if self.bg_download_queue and getattr(self, "bg_download_active", False):
-                self.loop.set_alarm_in(0.1, self._bg_download_next)
-            else:
-                self.loop.set_alarm_in(0.1, lambda l, d: self._bg_download_complete())
-
-        self.bg_thread = threading.Thread(target=do_download, daemon=True)
-        self.bg_thread.start()
-
-    def _bg_download_complete(self):
-        """Called when background downloads finish."""
-        self.bg_download_active = False
-        failed = len(getattr(self, "bg_download_failures", []))
-        total = getattr(self, "bg_download_total", 0)
-        self.bg_download_progress = None
-        self.bg_download_title = ""
-        self.bg_download_artist = ""
-        self.bg_download_playlist = ""
-        self.bg_download_current_url = None
-
-        if failed > 0:
-            self.status.notify(
-                f"✓ Done: {total - failed}/{total} tracks ({failed} failed)"
-            )
-        else:
-            self.status.notify(f"✓ All {total} tracks downloaded!")
-
-        # Clear notification after 5 seconds
-        self.loop.set_alarm_in(5.0, lambda l, d: self.status.clear_notify())
-
-        logger.info(f"[BG] Complete: {total - failed}/{total} success, {failed} failed")
-
     def _on_download_all(self):
         """Trigger download of all missing tracks in current playlist."""
         if not self.current_playlist:
@@ -1557,6 +1449,95 @@ class YTBMusicUI:
 
         pl_name = self.playlists[self.selected_playlist_idx]
 
+        def find_deletable_cache_files() -> tuple[list[Path], int]:
+            """
+            Return (files, total_bytes) for cache files that appear unused by other playlists.
+            This is best-effort and intentionally conservative.
+            """
+            try:
+                data = load_playlist(pl_name)
+            except Exception:
+                return [], 0
+
+            tracks = data.get("tracks", []) or []
+
+            other_urls: set[str] = set()
+            other_cache_paths: set[Path] = set()
+            cache_root = self.downloader.cache_dir.resolve()
+
+            for other in self.playlists:
+                if other == pl_name:
+                    continue
+                try:
+                    other_data = load_playlist(other)
+                except Exception:
+                    continue
+                for t in other_data.get("tracks", []) or []:
+                    url = t.get("url")
+                    if url:
+                        other_urls.add(url)
+                        cached = self.downloader.is_cached(
+                            url, title=t.get("title"), artist=t.get("artist")
+                        )
+                        if cached:
+                            p = Path(cached).resolve()
+                            try:
+                                p.relative_to(cache_root)
+                            except ValueError:
+                                continue
+                            other_cache_paths.add(p)
+
+            candidates: dict[Path, int] = {}
+            for t in tracks:
+                url = t.get("url")
+                if not url:
+                    continue
+                # If the same URL exists in other playlists, assume shared and keep cache.
+                if url in other_urls:
+                    continue
+                cached = self.downloader.is_cached(
+                    url, title=t.get("title"), artist=t.get("artist")
+                )
+                if not cached:
+                    continue
+                p = Path(cached).resolve()
+                try:
+                    p.relative_to(cache_root)
+                except ValueError:
+                    continue
+                if p in other_cache_paths:
+                    continue
+                try:
+                    size = p.stat().st_size if p.exists() else 0
+                except Exception:
+                    size = 0
+                candidates[p] = max(candidates.get(p, 0), size)
+
+            files = sorted(candidates.keys())
+            total_bytes = sum(candidates.values())
+            return files, total_bytes
+
+        def delete_cache_files(paths: list[Path]):
+            deleted = 0
+            deleted_bytes = 0
+            for p in paths:
+                try:
+                    if p.exists():
+                        try:
+                            deleted_bytes += p.stat().st_size
+                        except Exception:
+                            pass
+                        p.unlink()
+                        deleted += 1
+                except Exception:
+                    pass
+            if deleted:
+                mb = deleted_bytes / (1024 * 1024)
+                self.log_activity(f"Cache cleaned: {deleted} file(s) ({mb:.1f} MB)", "info")
+                self.status.set(f"Cache cleaned: {deleted} file(s) ({mb:.1f} MB) ✓")
+            else:
+                self.status.set("No cache files deleted")
+
         def confirm_delete():
             try:
                 # Stop any pending downloads for this playlist
@@ -1572,6 +1553,8 @@ class YTBMusicUI:
                 ):
                     self._pending_autoplay = None
 
+                cache_files, cache_bytes = find_deletable_cache_files()
+
                 delete_playlist(pl_name)
                 logger.info(f"Deleted playlist: {pl_name}")
 
@@ -1580,6 +1563,15 @@ class YTBMusicUI:
                 self.selected_playlist_idx = None
                 self._switch_to_menu()
                 self.status.set(f"Deleted '{pl_name}' ✓")
+
+                if cache_files:
+                    mb = cache_bytes / (1024 * 1024)
+                    self._show_confirm_dialog(
+                        "Delete Cache Too?",
+                        f"Delete {len(cache_files)} cached file(s) ({mb:.1f} MB) that look unused?",
+                        on_confirm=lambda: delete_cache_files(cache_files),
+                        on_cancel=lambda: self.status.set("Cache kept"),
+                    )
             except Exception as e:
                 logger.error(f"Failed to delete playlist: {e}")
                 self.status.set(f"Error deleting playlist: {e}")
