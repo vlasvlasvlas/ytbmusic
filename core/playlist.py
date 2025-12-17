@@ -38,15 +38,38 @@ class Track:
 class Playlist:
     """Manages a playlist of tracks."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        tracks: Optional[List[Track]] = None,
+        settings: Optional[Dict] = None,
+    ):
+        # Metadata and settings
         self.metadata = {}
-        self.settings = {}
-        self.tracks: List[Track] = []
+        if name is not None:
+            self.metadata["name"] = name
+        if description is not None:
+            self.metadata["description"] = description
+
+        self.settings = settings.copy() if settings else {}
+
+        # Core state
+        self.tracks: List[Track] = list(tracks) if tracks else []
         self.current_index = 0
-        self.shuffle_enabled = False
-        self.repeat_mode = RepeatMode.PLAYLIST
-        self._original_order = []
+        self.shuffle_enabled = bool(self.settings.get("shuffle", False))
+
+        repeat_setting = self.settings.get("repeat", RepeatMode.PLAYLIST.value)
+        try:
+            self.repeat_mode = RepeatMode(repeat_setting)
+        except Exception:
+            self.repeat_mode = RepeatMode.PLAYLIST
+
+        # Track ordering
+        self._original_order = list(range(len(self.tracks)))
         self._shuffle_order = []
+        if self.shuffle_enabled and self.tracks:
+            self._create_shuffle_order()
 
     @classmethod
     def from_file(cls, filepath: str) -> "Playlist":
@@ -171,18 +194,64 @@ class Playlist:
 
     def jump_to(self, index: int) -> Optional[Track]:
         """
-        Jump to specific track index.
+        Jump to specific track index (logical index/position in queue).
 
         Args:
-            index: Track index (0-based)
-
-        Returns:
-            Track at index or None if invalid
+            index: Queue position (0-based)
         """
         if 0 <= index < len(self.tracks):
             self.current_index = index
             return self.get_current_track()
         return None
+
+    def set_position_by_original_index(self, original_index: int) -> Optional[Track]:
+        """
+        Jump to a specific track by its original index in the tracks list.
+        Useful when clicking a track in the UI list.
+
+        Args:
+           original_index: Index in the .tracks list
+        """
+        if not (0 <= original_index < len(self.tracks)):
+            return None
+
+        if self.shuffle_enabled and self._shuffle_order:
+            # Find which position in the shuffled queue points to this track
+            try:
+                queue_pos = self._shuffle_order.index(original_index)
+                self.current_index = queue_pos
+            except ValueError:
+                # Should not happen
+                self.current_index = original_index
+        else:
+            self.current_index = original_index
+
+        return self.get_current_track()
+
+    def peek_next(self) -> Optional[Track]:
+        """
+        Return the next track without changing position.
+        """
+        if not self.tracks:
+            return None
+
+        if self.repeat_mode == RepeatMode.TRACK:
+            return self.get_current_track()
+
+        next_idx = self.current_index + 1
+        if next_idx >= len(self.tracks):
+            if self.repeat_mode == RepeatMode.PLAYLIST:
+                next_idx = 0
+            else:
+                return None
+
+        # Resolve actual index (shuffle vs normal)
+        if self.shuffle_enabled and self._shuffle_order:
+            actual_index = self._shuffle_order[next_idx]
+        else:
+            actual_index = next_idx
+
+        return self.tracks[actual_index]
 
     def toggle_shuffle(self):
         """Toggle shuffle mode."""
@@ -249,6 +318,54 @@ class PlaylistManager:
     def get_current(self) -> Optional[Playlist]:
         """Get current playlist."""
         return self.current_playlist
+
+    def rename_playlist(self, old_name: str, new_name: str) -> None:
+        """
+        Rename a playlist file and update its internal metadata.
+
+        Args:
+            old_name: Current playlist name (stem)
+            new_name: New playlist name (stem)
+
+        Raises:
+            FileNotFoundError: If old name not found
+            FileExistsError: If new name already exists
+            ValueError: If new name is invalid
+        """
+        if not new_name or not new_name.strip():
+            raise ValueError("New name cannot be empty")
+
+        old_path = self.playlists_dir / f"{old_name}.json"
+        new_path = self.playlists_dir / f"{new_name}.json"
+
+        if not old_path.exists():
+            raise FileNotFoundError(f"Playlist '{old_name}' not found")
+
+        if new_path.exists():
+            raise FileExistsError(f"Playlist '{new_name}' already exists")
+
+        # 1. Load, update, save
+        try:
+            with open(old_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Update name in metadata
+            if "metadata" not in data:
+                data["metadata"] = {}
+            data["metadata"]["name"] = new_name
+
+            with open(old_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # 2. Rename file
+            old_path.rename(new_path)
+
+            # 3. Update current if needed
+            if self.current_playlist and self.current_playlist.get_name() == old_name:
+                self.current_playlist.metadata["name"] = new_name
+
+        except Exception as e:
+            raise Exception(f"Failed to rename playlist: {e}")
 
 
 if __name__ == "__main__":

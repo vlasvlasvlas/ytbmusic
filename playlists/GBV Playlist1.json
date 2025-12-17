@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "GBV Playlist1",
+    "description": "Imported from https://www.youtube.com/watch?v=6HKCwYjt5eY&list=PLfpevK0pYncjTQejYqOQ35j5CBxKfBUFz",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": []
+}
