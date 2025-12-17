@@ -21,6 +21,7 @@
 | Feature | Descripción |
 |---------|-------------|
 | 🎵 **Streaming + Cache** | Reproducción inmediata. El sistema descarga en segundo plano mientras escuchas. |
+| 🔈 **Background Playback** | La música sigue sonando al volver al menú (`M`) o importar playlists. |
 | ⬇️ **Smart Download (DownloadManager)** | Una sola cola + worker con **prioridades** (Import/Play/Auto), **dedupe**, cancelación y progreso throttled (UI fluida). |
 | 📥 **Import YouTube** | Importá playlists completas con `I`. Limpia automática de URLs "Watch with Playlist". |
 | 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
@@ -83,7 +84,7 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 | Tecla | Acción |
 |:-----:|--------|
 | `1-9` | Seleccionar playlist |
-| `P` | Reproducir playlist seleccionada |
+| `P` | Reproducir playlist (Smart Resume si es la actual) |
 | `space` | Reproducir/Pausar |
 | `X` | Borrar playlist seleccionada |
 | `I` | Importar nueva playlist (URL de YouTube) |
@@ -106,7 +107,7 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 | `V` | Cambiar Animación (rotativo) |
 | `Z` | Shuffle (On/Off) |
 | `R` | Repeat (Playlist/Track/Off) |
-| `M` | Volver al Menú Principal |
+| `M` | Volver al Menú Principal (Mantiene música) |
 | `Q` | Salir |
 
 ---

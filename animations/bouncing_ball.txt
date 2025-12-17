@@ -1,0 +1,26 @@
+---
+name: Bouncing Ball
+author: ytbmusic
+fps: 8
+width: 4
+height: 3
+---
+FRAME_1:
+    
+    
+O   
+
+FRAME_2:
+    
+ O  
+    
+
+FRAME_3:
+  O 
+    
+    
+
+FRAME_4:
+    
+   O
+    
