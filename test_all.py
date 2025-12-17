@@ -38,21 +38,11 @@ except Exception as e:
 # Test 2: Logger
 print("📝 Test 2: Logger...")
 try:
-    from core.logger import YTBMusicLogger
+    from core.logger import setup_logging
 
-    logger = YTBMusicLogger()
-    logger.log_session_start()
-    logger.log_track_start("Test", "Artist", "playlist", "url", False)
-    logger.log_track_complete("Test", "Artist", 180.0)
-    logger.log_session_end(1)
-
-    stats = logger.get_statistics()
-    print(f"  ✅ Total tracks: {stats['total_tracks_played']}")
-    print(f"  ✅ Cache hits: {stats['cache_hits']}, misses: {stats['cache_misses']}")
-
-    report = logger.generate_report()
-    print(f"  ✅ Report generated ({len(report)} chars)")
-
+    logger = setup_logging()
+    logger.info("Test log message")
+    print(f"  ✅ Logger initialized: {logger.name}")
     print("✅ Logger: PASSED\n")
 except Exception as e:
     print(f"❌ FAILED: {e}\n")
@@ -163,29 +153,26 @@ except Exception as e:
 print("🔄 Test 6: Integration (Simulated Playback)...")
 try:
     from core.config import ConfigManager
-    from core.logger import YTBMusicLogger
+    from core.logger import setup_logging
     from core.playlist import PlaylistManager
 
     # Simulate full flow
     config = ConfigManager()
-    logger = YTBMusicLogger()
+    logger = setup_logging()
     pm = PlaylistManager()
 
     config.start_session()
-    logger.log_session_start()
+    logger.info("Session started")
 
     playlist = pm.load_playlist("vladitest")
     track = playlist.get_current_track()
 
     config.save_playback_state("playlists/vladitest.json", playlist.get_name(), 0, 0.0)
 
-    logger.log_track_start(
-        track.title, track.artist, playlist.get_name(), track.url, False
-    )
+    logger.info(f"Playing: {track.title} - {track.artist}")
 
-    logger.log_track_complete(track.title, track.artist, 180.0)
     config.end_session()
-    logger.log_session_end(1)
+    logger.info("Session ended")
 
     # Verify state
     resume = config.get_resume_info()
