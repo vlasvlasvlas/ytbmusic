@@ -172,6 +172,7 @@ Responsabilidad:
 - Muestra confirm dialog (“¿estás seguro?”).
 - Cancela descargas de esa playlist en cola y en progreso (best-effort).
 - Borra el JSON de `playlists/`.
+- Opcional: ofrece borrar archivos en `cache/` que parecen no estar usados por otras playlists (conservador).
 
 ### E) Rename playlist (`E`)
 - Muestra input dialog.
@@ -179,10 +180,10 @@ Responsabilidad:
 
 ### F) Track Picker (`T`)
 - Abre overlay con la lista de tracks.
+- `/` activa búsqueda/filtro por `artist`/`title`.
 - Al seleccionar un track, ajusta posición de playlist y reproduce ese tema.
 
 ## 6) Debugging rápido
 
 - Logs: `logs/ytbmusic.log`
 - Si algo “descarga lo que no espero”, mirar los eventos de `DownloadManager` (request id + label).
-

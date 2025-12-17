@@ -23,14 +23,15 @@ from core.playlist_editor import (
 
 from core.logger import setup_logging
 from ui.skin_loader import SkinLoader
+from ui.animation_loader import AnimationLoader, AnimationWidget
 
 logger = setup_logging()
 
 
-HELP_TEXT = "Space=Play/Pause N/P=Next/Prev ←/→=Seek ↑/↓=Vol T=Tracks S=Skin Z=Shuffle R=Repeat M=Menu Q=Quit"
+HELP_TEXT = "Space=⏯ N/P=⏭⏮ ←/→=Seek ↑/↓=Vol S=Skin A=Anim V=NextAnim M=Menu Q=Quit"
 PAD_WIDTH = 120
 PAD_HEIGHT = 88
-SKIN_HOTKEYS = "ABCDFGHJKL"  # skip E/I to leave E for Rename and I for Import
+SKIN_HOTKEYS = "BCDFGHJKL"  # skip A (Animation), E (Rename), I (Import)
 
 
 class UIState(Enum):
@@ -79,34 +80,43 @@ class SkinWidget(urwid.WidgetWrap):
 
 
 class StatusBar(urwid.WidgetWrap):
-    """Three-line status bar: notification (optional) + context + shortcuts."""
+    """Three-line status bar: Info (Top) + Playback Shortcuts (Mid) + App Shortcuts (Bot)."""
 
-    SHORTCUTS = "Space=⏯  N/P=⏭⏮  ↑↓=Vol  ←→=Seek  T=Tracks  S=Skin  M=Menu  Q=Quit"
+    SHORTCUTS_PLAY = "Space=⏯  N/P=⏭⏮  ←/→=Seek  ↑↓=Vol  Z=Shuffle  R=Repeat"
+    SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
 
-    def __init__(self, context_text):
-        self.notification = urwid.Text("", align="center")
-        self.context = urwid.Text(context_text, align="center")
-        self.shortcuts = urwid.Text(self.SHORTCUTS, align="center")
+    def __init__(self, context_text=""):
+        self.top_line = urwid.Text(context_text, align="center")
+        self.mid_line = urwid.Text(self.SHORTCUTS_PLAY, align="center")
+        self.bot_line = urwid.Text(self.SHORTCUTS_APP, align="center")
+        
+        self._default_info = context_text
+        
         self.pile = urwid.Pile(
             [
-                urwid.AttrWrap(self.notification, "status"),
-                urwid.AttrWrap(self.context, "status"),
-                urwid.AttrWrap(self.shortcuts, "status"),
+                urwid.AttrWrap(self.top_line, "status"),
+                urwid.AttrWrap(self.mid_line, "status"),
+                urwid.AttrWrap(self.bot_line, "status"),
             ]
         )
         super().__init__(self.pile)
 
     def set(self, text):
-        """Set the context message (middle line)."""
-        self.context.set_text(text)
+        """Set the persistent info message (Top Line)."""
+        # Clean up any " | HELP_TEXT" that might be passed from legacy calls
+        if " | Space=" in text:
+            text = text.split(" | Space=")[0]
+        
+        self.top_line.set_text(text)
+        self._default_info = text
 
     def notify(self, text):
-        """Set the notification (top line) - for downloads, alerts, etc."""
-        self.notification.set_text(text)
+        """Set a transient notification (Top Line)."""
+        self.top_line.set_text(text)
 
     def clear_notify(self):
-        """Clear the notification line."""
-        self.notification.set_text("")
+        """Restore default info to Top Line."""
+        self.top_line.set_text(self._default_info)
 
 
 class MessageLog(urwid.WidgetWrap):
@@ -248,44 +258,131 @@ class TrackPickerDialog(urwid.WidgetWrap):
         self._on_select = on_select
         self._on_cancel = on_cancel
 
-        header = urwid.Text(("title", f" {title} — Select a track "), align="center")
-        hint = urwid.Text(" Enter=Play  Esc/T=Close  ↑/↓=Navigate ", align="center")
+        self._title = title
+        self._tracks = list(tracks)
+        self._current_idx = int(current_idx)
+        self._filtered_indices: list[int] = []
+        self._search_active = False
 
-        rows = urwid.SimpleFocusListWalker([])
-        for i, tr in enumerate(tracks):
-            artist = (getattr(tr, "artist", "") or "").strip()
-            ttitle = (getattr(tr, "title", "") or "").strip()
-            label = f"{i+1:>3}. "
-            if i == current_idx:
-                label += "▶ "
-            if getattr(tr, "is_playable", True) is False:
-                label += "✗ "
-            if artist and ttitle:
-                label += f"{artist} - {ttitle}"
-            else:
-                label += ttitle or artist or "Unknown"
+        self._header = urwid.Text("", align="center")
+        self._hint = urwid.Text(
+            " Enter=Play  /=Search  Esc=Close  ↑/↓=Navigate ", align="center"
+        )
+        self._search = urwid.Edit(" Search: ")
+        self._footer = urwid.Pile([self._hint, self._search])
+        self._footer.focus_position = 0
 
-            btn = urwid.Button(label)
-            urwid.connect_signal(btn, "click", lambda b, idx=i: self._on_select(idx))
-            rows.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+        self._walker = urwid.SimpleFocusListWalker([])
+        self._listbox = urwid.ListBox(self._walker)
 
-        self._listbox = urwid.ListBox(rows)
-        if rows:
+        self._frame = urwid.Frame(
+            body=self._listbox, header=self._header, footer=self._footer
+        )
+        super().__init__(urwid.LineBox(self._frame))
+
+        self._apply_filter("")
+
+    def _update_header(self, query: str) -> None:
+        total = len(self._tracks)
+        shown = len(self._filtered_indices)
+        q = (query or "").strip()
+        suffix = f"  (filter: {q})" if q else ""
+        self._header.set_text(
+            ("title", f" {self._title} — Tracks {shown}/{total}{suffix} ")
+        )
+
+    def _track_label(self, original_index: int) -> str:
+        tr = self._tracks[original_index]
+        artist = (getattr(tr, "artist", "") or "").strip()
+        ttitle = (getattr(tr, "title", "") or "").strip()
+
+        label = f"{original_index + 1:>3}. "
+        if original_index == self._current_idx:
+            label += "▶ "
+        if getattr(tr, "is_playable", True) is False:
+            label += "✗ "
+
+        if artist and ttitle:
+            label += f"{artist} - {ttitle}"
+        else:
+            label += ttitle or artist or "Unknown"
+        return label
+
+    def _apply_filter(self, query: str) -> None:
+        q = (query or "").casefold().strip()
+        self._filtered_indices = []
+        for i, tr in enumerate(self._tracks):
+            artist = (getattr(tr, "artist", "") or "").casefold()
+            ttitle = (getattr(tr, "title", "") or "").casefold()
+            if not q or q in f"{artist} {ttitle}":
+                self._filtered_indices.append(i)
+
+        del self._walker[:]
+
+        if not self._filtered_indices:
+            self._walker.append(urwid.Text(" No matches"))
+            self._update_header(query)
+            return
+
+        for original_index in self._filtered_indices:
+            btn = urwid.Button(self._track_label(original_index))
+            urwid.connect_signal(
+                btn, "click", lambda b, idx=original_index: self._on_select(idx)
+            )
+            self._walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+
+        focus_pos = 0
+        if self._current_idx in self._filtered_indices:
             try:
-                rows.set_focus(max(0, min(int(current_idx), len(rows) - 1)))
-            except Exception:
-                pass
+                focus_pos = self._filtered_indices.index(self._current_idx)
+            except ValueError:
+                focus_pos = 0
+        try:
+            self._walker.set_focus(max(0, min(int(focus_pos), len(self._walker) - 1)))
+        except Exception:
+            pass
 
-        # Use Frame to avoid flow/box sizing issues (ListBox is BOX, Text is FLOW).
-        frame = urwid.Frame(body=self._listbox, header=header, footer=hint)
-        box = urwid.LineBox(frame)
-        super().__init__(box)
+        self._update_header(query)
+
+    def _enter_search(self) -> None:
+        self._search_active = True
+        self._frame.focus_part = "footer"
+        self._footer.focus_position = 1
+
+    def _exit_search(self) -> None:
+        self._search_active = False
+        self._frame.focus_part = "body"
+        self._footer.focus_position = 0
 
     def keypress(self, size, key):
-        if key in ("esc", "t", "T"):
+        if key == "/" and not self._search_active:
+            self._enter_search()
+            return None
+
+        if key == "esc":
+            if self._search_active:
+                if self._search.get_edit_text():
+                    self._search.set_edit_text("")
+                    self._apply_filter("")
+                    self._exit_search()
+                    return None
+                self._exit_search()
             self._on_cancel()
             return None
-        return super().keypress(size, key)
+
+        if key in ("t", "T") and not self._search_active:
+            self._on_cancel()
+            return None
+
+        result = super().keypress(size, key)
+
+        if self._search_active:
+            if key == "enter":
+                self._exit_search()
+                return None
+            self._apply_filter(self._search.get_edit_text())
+
+        return result
 
 
 class YTBMusicUI:
@@ -313,6 +410,10 @@ class YTBMusicUI:
         # Skins (only those that fit canvas)
         self.current_skin_idx = 0
         self.skin_lines = []
+        self.skin_frames: Optional[list[list[str]]] = None
+        self._skin_frame_index = 0
+        self._skin_frame_interval_sec = 0.5
+        self._skin_next_frame_at = 0.0
         self._loading_skin = False
 
         # Playlists
@@ -373,10 +474,19 @@ class YTBMusicUI:
         self.message_log = MessageLog(height=3)
         self.main_widget = urwid.WidgetPlaceholder(urwid.Text("Initializing..."))
 
+        # Animation system
+        self.animation_widget = AnimationWidget(height=3)
+        self.animation_active = False
+        self.animation_alarm = None
+        self.available_animations = AnimationLoader.list_available_animations()
+        self.current_animation_idx = 0
+
         # Combine message log and status bar in footer
+        # Use WidgetPlaceholder for footer content to allow swapping between log and animation
+        self.footer_content = urwid.WidgetPlaceholder(self.message_log)
         footer_pile = urwid.Pile(
             [
-                ("fixed", 5, self.message_log),  # 3 lines text + 2 borders = 5 lines
+                ("fixed", 5, self.footer_content),  # 3 lines text + 2 borders = 5 lines
                 self.status,  # Flow widget (natural height)
             ]
         )
@@ -851,10 +961,16 @@ class YTBMusicUI:
     def _handle_error(self, error: Exception, context: str = ""):
         error_msg = str(error)[:60]
         self.status.set(f"❌ Error: {error_msg} • Press M for menu")
+        logger.error(
+            "ERROR [%s]: %s",
+            context or "unknown",
+            error,
+            exc_info=(type(error), error, error.__traceback__),
+        )
         print(f"ERROR [{context}]: {error}")
         import traceback
 
-        traceback.print_exc()
+        traceback.print_exception(type(error), error, error.__traceback__)
 
     def _safe_call(self, func, *args, **kwargs):
         try:
@@ -1533,7 +1649,9 @@ class YTBMusicUI:
                     pass
             if deleted:
                 mb = deleted_bytes / (1024 * 1024)
-                self.log_activity(f"Cache cleaned: {deleted} file(s) ({mb:.1f} MB)", "info")
+                self.log_activity(
+                    f"Cache cleaned: {deleted} file(s) ({mb:.1f} MB)", "info"
+                )
                 self.status.set(f"Cache cleaned: {deleted} file(s) ({mb:.1f} MB) ✓")
             else:
                 self.status.set("No cache files deleted")
@@ -1673,9 +1791,20 @@ class YTBMusicUI:
         if self.state == UIState.PLAYER or getattr(
             self, "_player_overlay_active", False
         ):
+            self._advance_skin_frame()
             self._render_skin()
             if loop:
                 self.refresh_alarm = loop.set_alarm_in(0.2, self.refresh)
+
+    def _advance_skin_frame(self) -> None:
+        if not self.skin_frames or len(self.skin_frames) < 2:
+            return
+        now = time.time()
+        if now < self._skin_next_frame_at:
+            return
+        self._skin_frame_index = (self._skin_frame_index + 1) % len(self.skin_frames)
+        self.skin_lines = self.skin_frames[self._skin_frame_index]
+        self._skin_next_frame_at = now + max(0.05, float(self._skin_frame_interval_sec))
 
     def _render_skin(self):
         if self.current_playlist:
@@ -1773,7 +1902,42 @@ class YTBMusicUI:
             else:
                 # 3. Load if valid
                 meta, lines = self.skin_loader.load(str(skin_path))
-                self.skin_lines = pad_lines(lines, PAD_WIDTH, PAD_HEIGHT)
+                self.skin_frames = None
+                self._skin_frame_index = 0
+                self._skin_next_frame_at = 0.0
+
+                is_frames = bool(lines) and isinstance(lines[0], list)
+                if is_frames:
+                    self.skin_frames = [
+                        pad_lines(frame, PAD_WIDTH, PAD_HEIGHT) for frame in lines
+                    ]
+                    self.skin_lines = self.skin_frames[0]
+
+                    interval = None
+                    fps = meta.get("fps") or meta.get("frame_rate")
+                    delay = (
+                        meta.get("frame_delay")
+                        or meta.get("frame_interval")
+                        or meta.get("animation_delay")
+                    )
+                    if fps is not None:
+                        try:
+                            interval = 1.0 / float(fps)
+                        except (TypeError, ValueError, ZeroDivisionError):
+                            interval = None
+                    if interval is None and delay is not None:
+                        try:
+                            interval = float(delay)
+                        except (TypeError, ValueError):
+                            interval = None
+                    self._skin_frame_interval_sec = (
+                        interval if interval is not None else 0.5
+                    )
+                    self._skin_next_frame_at = time.time() + float(
+                        self._skin_frame_interval_sec
+                    )
+                else:
+                    self.skin_lines = pad_lines(lines, PAD_WIDTH, PAD_HEIGHT)
                 if self.state == UIState.PLAYER:
                     self.status.set(f"Skin: {meta.get('name', '')[:20]} | " + HELP_TEXT)
 
@@ -2018,6 +2182,7 @@ class YTBMusicUI:
         self._play_current_track(prev_idx)
 
     def cleanup(self):
+        self._stop_animation()
         try:
             if self.refresh_alarm:
                 self.loop.remove_alarm(self.refresh_alarm)
@@ -2034,6 +2199,72 @@ class YTBMusicUI:
             self.player.cleanup()
         except Exception:
             pass
+
+    # ---------- animation system ----------
+    def _toggle_animation(self):
+        """Toggle the animation overlay/widget in the footer."""
+        if not self.available_animations:
+            self.status.notify("No animations found in animations/ folder")
+            return
+
+        self.animation_active = not self.animation_active
+
+        if self.animation_active:
+            # Load current animation if not loaded
+            if self.available_animations:
+                anim_name = self.available_animations[self.current_animation_idx]
+                if (
+                    not self.animation_widget.is_loaded()
+                    or self.animation_widget.get_current_animation() != anim_name
+                ):
+                    self.animation_widget.load_animation(anim_name)
+                    self.status.notify(f"Animation: {anim_name} (A=Toggle V=Next)")
+
+            # Switch footer content to animation widget
+            self.footer_content.original_widget = self.animation_widget
+            self._start_animation()
+        else:
+            # Switch back to message log
+            self._stop_animation()
+            self.footer_content.original_widget = self.message_log
+            self.status.clear_notify()
+
+    def _start_animation(self):
+        """Start the animation loop."""
+        if self.animation_alarm:
+            self.loop.remove_alarm(self.animation_alarm)
+
+        # Initial draw
+        self.animation_widget.advance_frame()
+        interval = self.animation_widget.get_interval()
+        self.animation_alarm = self.loop.set_alarm_in(interval, self._animate_loop)
+
+    def _stop_animation(self):
+        """Stop the animation loop."""
+        if self.animation_alarm:
+            self.loop.remove_alarm(self.animation_alarm)
+            self.animation_alarm = None
+
+    def _animate_loop(self, loop, data):
+        """Animation loop callback."""
+        if not self.animation_active:
+            return
+
+        self.animation_widget.advance_frame()
+        interval = self.animation_widget.get_interval()
+        self.animation_alarm = loop.set_alarm_in(interval, self._animate_loop)
+
+    def _next_animation(self):
+        """Switch to next available animation."""
+        if not self.available_animations or not self.animation_active:
+            return
+
+        self.current_animation_idx = (self.current_animation_idx + 1) % len(
+            self.available_animations
+        )
+        anim_name = self.available_animations[self.current_animation_idx]
+        self.animation_widget.load_animation(anim_name)
+        self.status.notify(f"Animation: {anim_name}")
 
     def unhandled_input(self, key):
         # Ignore mouse events and other non-string keys
@@ -2119,6 +2350,10 @@ class YTBMusicUI:
                 self.status.set(f"Repeat: {mode} | " + HELP_TEXT)
         elif key in ("d", "D"):
             self._on_download_all()
+        elif key in ("a", "A"):
+            self._toggle_animation()
+        elif key in ("v", "V"):
+            self._next_animation()
 
 
 def main():
@@ -2132,10 +2367,11 @@ def main():
         app = YTBMusicUI()
         app.run()
     except Exception as e:
+        logger.critical("Critical Error: %s", e, exc_info=(type(e), e, e.__traceback__))
         print(f"\n❌ Critical Error: {e}")
         import traceback
 
-        traceback.print_exc()
+        traceback.print_exception(type(e), e, e.__traceback__)
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
 
