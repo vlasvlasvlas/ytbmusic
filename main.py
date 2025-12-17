@@ -241,7 +241,9 @@ class InputDialog(urwid.WidgetWrap):
 class TrackPickerDialog(urwid.WidgetWrap):
     """Scrollable track picker overlay for the current playlist."""
 
-    def __init__(self, title: str, tracks: list, current_idx: int, on_select, on_cancel):
+    def __init__(
+        self, title: str, tracks: list, current_idx: int, on_select, on_cancel
+    ):
         self._on_select = on_select
         self._on_cancel = on_cancel
 
@@ -1246,7 +1248,10 @@ class YTBMusicUI:
             self.loop.set_alarm_in(
                 delay,
                 lambda l, d: self._start_background_downloads(
-                    tracks, start_delay=0.0, default_playlist=default_playlist, force_reset=force_reset
+                    tracks,
+                    start_delay=0.0,
+                    default_playlist=default_playlist,
+                    force_reset=force_reset,
                 ),
             )
             return
@@ -1286,7 +1291,9 @@ class YTBMusicUI:
                 pl_name = t.get("_playlist") or default_playlist or ""
                 if pl_name:
                     try:
-                        self.playlist_manager.mark_track_unplayable(pl_name, t["url"], title)
+                        self.playlist_manager.mark_track_unplayable(
+                            pl_name, t["url"], title
+                        )
                     except Exception:
                         pass
                 continue
@@ -1554,10 +1561,15 @@ class YTBMusicUI:
             try:
                 # Stop any pending downloads for this playlist
                 try:
-                    self.download_manager.cancel_playlist(pl_name, cancel_in_progress=True)
+                    self.download_manager.cancel_playlist(
+                        pl_name, cancel_in_progress=True
+                    )
                 except Exception:
                     pass
-                if self._pending_autoplay and self._pending_autoplay.get("playlist") == pl_name:
+                if (
+                    self._pending_autoplay
+                    and self._pending_autoplay.get("playlist") == pl_name
+                ):
                     self._pending_autoplay = None
 
                 delete_playlist(pl_name)
@@ -1666,7 +1678,9 @@ class YTBMusicUI:
             self.status.set("All playlists fully cached! ✓")
 
     def refresh(self, loop=None, data=None):
-        if self.state == UIState.PLAYER or getattr(self, "_player_overlay_active", False):
+        if self.state == UIState.PLAYER or getattr(
+            self, "_player_overlay_active", False
+        ):
             self._render_skin()
             if loop:
                 self.refresh_alarm = loop.set_alarm_in(0.2, self.refresh)

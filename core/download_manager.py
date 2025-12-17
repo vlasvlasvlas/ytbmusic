@@ -165,9 +165,7 @@ class DownloadManager:
                 ):
                     continue
 
-                heapq.heappush(
-                    self._queue, (task.priority, next(self._seq), task)
-                )
+                heapq.heappush(self._queue, (task.priority, next(self._seq), task))
                 self._queued_urls.add(task.url)
                 added += 1
 
@@ -198,7 +196,9 @@ class DownloadManager:
             self._emit({"type": "cancel_all"})
             self._cv.notify_all()
 
-    def cancel_request(self, request_id: str, *, cancel_in_progress: bool = True) -> int:
+    def cancel_request(
+        self, request_id: str, *, cancel_in_progress: bool = True
+    ) -> int:
         with self._cv:
             kept: list[tuple[int, int, DownloadTask]] = []
             removed = 0
@@ -212,14 +212,20 @@ class DownloadManager:
             self._queue = kept
             heapq.heapify(self._queue)
 
-            if cancel_in_progress and self._current_task and self._current_task.request_id == request_id:
+            if (
+                cancel_in_progress
+                and self._current_task
+                and self._current_task.request_id == request_id
+            ):
                 self._current_cancel.set()
 
             stats = self._requests.get(request_id)
             if stats and removed:
                 stats.canceled += removed
 
-            self._emit({"type": "cancel_request", "request_id": request_id, "removed": removed})
+            self._emit(
+                {"type": "cancel_request", "request_id": request_id, "removed": removed}
+            )
             self._cv.notify_all()
             return removed
 
