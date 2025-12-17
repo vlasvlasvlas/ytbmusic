@@ -1,0 +1,106 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "argerich schumann ",
+    "description": "Imported from https://www.youtube.com/watch?v=T34Wxq0SLNA&list=PLyrS5_ErY3KRrYD_zVmgFjTW7qEsKza4P",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": [
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: I. Von fremden Ländern und Menschen",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=T34Wxq0SLNA",
+      "tags": [],
+      "duration": 114
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: II. Kuriose Geschichte",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=DghL45KLeBo",
+      "tags": [],
+      "duration": 65
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: III. Hasche-Mann",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=ZrR_pWfQo7o",
+      "tags": [],
+      "duration": 29
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: IV. Bittendes Kind",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=enGvCQh6Yhs",
+      "tags": [],
+      "duration": 60
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: V. Glückes genug",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=vb_InTbFAeI",
+      "tags": [],
+      "duration": 63
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: VI. Wichtige Begebenheit",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=4kXYdrMBkj8",
+      "tags": [],
+      "duration": 49
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: VII. Träumerei",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=OippNH2lREU",
+      "tags": [],
+      "duration": 176
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: VIII. Am Kamin",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=Wy1a3RetE20",
+      "tags": [],
+      "duration": 51
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: IX. Ritter vom Steckenpferd",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=4MJVnUW5EFc",
+      "tags": [],
+      "duration": 36
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: X. Fast zu ernst",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=IlpTk2HELuU",
+      "tags": [],
+      "duration": 121
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: XI. Fürchtenmachen",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=0zxLqNg6OfQ",
+      "tags": [],
+      "duration": 93
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: XII. Kind im Einschlummern",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=yg48wS_dh-U",
+      "tags": [],
+      "duration": 144
+    },
+    {
+      "title": "Schumann: Kinderszenen, Op. 15: XIII. Der Dichter spricht",
+      "artist": "Martha Argerich - Topic",
+      "url": "https://www.youtube.com/watch?v=vYRkXC-1OP4",
+      "tags": [],
+      "duration": 133
+    }
+  ]
+}
