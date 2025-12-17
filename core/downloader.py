@@ -126,6 +126,11 @@ class YouTubeDownloader:
             uploader = info.get("uploader", "Unknown Artist")
             duration = info.get("duration", 0)
 
+            # SOTA Check: Skip unusable tracks (Private/Deleted)
+            if raw_title in ["[Private video]", "[Deleted video]"]:
+                logger.info(f"Skipping unusable track metadata extraction: {raw_title}")
+                return None
+
             # Try to parse "Artist - Title" format
             title = raw_title
             artist = uploader
@@ -205,8 +210,20 @@ class YouTubeDownloader:
         Returns list of dicts with: title, artist (uploader), duration, url.
         """
         try:
+            # 1. Clean URL: If it has v=...&list=..., strip v= to process as pure playlist
+            # This fixes "Watch with Playlist" URLs often failing in flat extraction
+            if "list=" in url and "v=" in url:
+                from urllib.parse import urlparse, parse_qs
+
+                parsed = urlparse(url)
+                qs = parse_qs(parsed.query)
+                if "list" in qs:
+                    url = f"https://www.youtube.com/playlist?list={qs['list'][0]}"
+
             opts = self.ydl_opts_info.copy()
-            opts["extract_flat"] = True  # faster, no individual downloads
+            opts["extract_flat"] = (
+                "in_playlist"  # More robust than True for flat extraction
+            )
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
@@ -219,9 +236,16 @@ class YouTubeDownloader:
                 eurl = entry.get("url") or entry.get("webpage_url")
                 if not eurl and entry.get("id"):
                     eurl = f"https://www.youtube.com/watch?v={entry['id']}"
+
+                title = entry.get("title", "Unknown")
+
+                # SOTA: Filter out unusable videos immediately
+                if title in ["[Private video]", "[Deleted video]"]:
+                    continue
+
                 items.append(
                     {
-                        "title": entry.get("title", "Unknown"),
+                        "title": title,
                         "artist": entry.get("uploader", "Unknown Artist"),
                         "duration": entry.get("duration", 0),
                         "url": eurl,
