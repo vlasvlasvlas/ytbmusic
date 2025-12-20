@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "metadata": {
-    "name": "fun size - album",
+    "name": "fun size album",
     "description": "Imported from https://www.youtube.com/watch?v=qDagAyiL4SA&list=PL1Fb6Ow-MZ_SL65XxwUil056bxuu4Gcg0",
     "author": "ytbmusic",
     "tags": []
@@ -12,7 +12,7 @@
   },
   "tracks": [
     {
-      "title": "Fun Size - \"Cool\"",
+      "title": "Fun Size - Cool",
       "artist": "FunSizeRVA",
       "url": "https://www.youtube.com/watch?v=qDagAyiL4SA",
       "tags": [],
@@ -40,20 +40,11 @@
       "duration": 168
     },
     {
-      "title": "Fun Size - \"Stinker\"",
+      "title": "Fun Size - Stinker",
       "artist": "FunSizeRVA",
       "url": "https://www.youtube.com/watch?v=8aT9UPpiy34",
       "tags": [],
       "duration": 231
-    },
-    {
-      "title": "Cool",
-      "artist": "Fun Size - Topic",
-      "url": "https://www.youtube.com/watch?v=8Yre2PapSKk",
-      "tags": [],
-      "duration": 87,
-      "is_playable": false,
-      "error_msg": "Video unavailable"
     },
     {
       "title": "Fun Size - Abacus",
@@ -63,14 +54,14 @@
       "duration": 161
     },
     {
-      "title": "Fun Size \"Pickle\"",
+      "title": "Fun Size Pickle",
       "artist": "rivercityhigh",
       "url": "https://www.youtube.com/watch?v=rIeyog9OYe0",
       "tags": [],
       "duration": 155
     },
     {
-      "title": "3. Fun Size - 'Richmond, VA - Hooray!' (Live Video Compilation)",
+      "title": "3 Fun Size - Richmond VA - Hooray Live Video Compilation",
       "artist": "RVA Video Comp",
       "url": "https://www.youtube.com/watch?v=iZ7EQOvteiA",
       "tags": [],

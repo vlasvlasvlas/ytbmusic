@@ -563,18 +563,35 @@ class YouTubeDownloader:
         Returns:
             Path to cached file if exists, None otherwise
         """
-        # Check by artist_title first if provided
+        import re
+        
+        # Strategy 1: Check exact name using current format
         if title:
             safe_name = self._make_cache_filename(title, artist)
             cache_file = self.cache_dir / f"{safe_name}.m4a"
             if cache_file.exists():
                 return str(cache_file)
-
-        # Fallback to video_id (for backwards compatibility)
+        
+        # Strategy 2: Fallback to video_id
         video_id = self._extract_video_id(url)
         cache_file = self.cache_dir / f"{video_id}.m4a"
         if cache_file.exists():
             return str(cache_file)
+        
+        # Strategy 3: Fuzzy search - look for files containing key parts of title/artist
+        if title:
+            # Extract alphanumeric core from title (first significant word)
+            title_core = re.sub(r"[^a-zA-Z0-9]", "", title)[:20]
+            artist_core = re.sub(r"[^a-zA-Z0-9]", "", artist or "")[:15] if artist else ""
+            
+            if title_core:
+                # Search for any m4a file containing both cores
+                for f in self.cache_dir.glob("*.m4a"):
+                    fname = f.stem
+                    # Check if filename contains key parts (case insensitive)
+                    if title_core.lower() in fname.lower():
+                        if not artist_core or artist_core.lower() in fname.lower():
+                            return str(f)
 
         return None
 
@@ -588,9 +605,9 @@ class YouTubeDownloader:
         else:
             name = title
 
-        # Keep only alphanumeric, spaces, underscores, and hyphens
+        # Keep only alphanumeric, spaces, and underscores (strip hyphens for consistency with existing cache files)
         # First remove everything else
-        name = re.sub(r"[^a-zA-Z0-9\s_\-]", "", name)
+        name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
 
         # Replace the separator with actual underscore (and surrounding spaces if any)
         name = name.replace("__SEP__", "_")

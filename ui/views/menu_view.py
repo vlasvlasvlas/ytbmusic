@@ -123,6 +123,13 @@ class MenuView:
             urwid.connect_signal(ren_btn, "click", lambda b: self.controller._on_rename_selected())
             walker.append(urwid.AttrMap(ren_btn, None, focus_map="highlight"))
 
+            # DOWNLOAD Button
+            dl_btn = urwid.Button(f"      [D] DOWNLOAD MISSING")
+            urwid.connect_signal(
+                dl_btn, "click", lambda b: self.controller._download_selected_playlist()
+            )
+            walker.append(urwid.AttrMap(dl_btn, None, focus_map="highlight"))
+
         walker.append(urwid.Text(""))
         walker.append(urwid.Divider("═"))
 
