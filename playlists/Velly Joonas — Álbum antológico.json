@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Velly Joonas — Álbum antológico",
+    "description": "Imported from https://www.youtube.com/watch?v=W47zCF_5RAk",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": [
+    {
+      "title": "1. Ingel",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_0",
+      "tags": [],
+      "duration": 0
+    },
+    {
+      "title": "2. Stopp, seisku aeg",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_1",
+      "tags": [],
+      "duration": 261.0
+    },
+    {
+      "title": "3. Käes on aeg",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_2",
+      "tags": [],
+      "duration": 174.0
+    },
+    {
+      "title": "4. Lahtiütlemine",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_3",
+      "tags": [],
+      "duration": 198.0
+    },
+    {
+      "title": "5. Palve",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_4",
+      "tags": [],
+      "duration": 230.0
+    },
+    {
+      "title": "6. Kui ma loobun",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_5",
+      "tags": [],
+      "duration": 184.0
+    },
+    {
+      "title": "7. Kui oleksin tundnud sind varem",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_6",
+      "tags": [],
+      "duration": 276.0
+    },
+    {
+      "title": "8. Tema",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_7",
+      "tags": [],
+      "duration": 278.0
+    },
+    {
+      "title": "9. Tulen merest",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_8",
+      "tags": [],
+      "duration": 168.0
+    },
+    {
+      "title": "10. Mööda koduvälju",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_9",
+      "tags": [],
+      "duration": 231.0
+    },
+    {
+      "title": "11. Unelmad",
+      "artist": "Román Sandino",
+      "url": "https://www.youtube.com/watch?v=W47zCF_5RAk#chapter_10",
+      "tags": [],
+      "duration": 256.0
+    }
+  ]
+}

@@ -33,6 +33,8 @@ class Track:
     tags: List[str] = None
     is_playable: bool = True
     error_msg: Optional[str] = None
+    start_time: float = 0.0
+    end_time: Optional[float] = None
 
     def __post_init__(self):
         if self.tags is None:
@@ -123,6 +125,8 @@ class Playlist:
                 tags=track_data.get("tags", []),
                 is_playable=track_data.get("is_playable", True),
                 error_msg=track_data.get("error_msg"),
+                start_time=track_data.get("start_time", 0.0),
+                end_time=track_data.get("end_time"),
             )
             self.tracks.append(track)
 
@@ -142,6 +146,8 @@ class Playlist:
                 "duration": track.duration,
                 "tags": track.tags,
                 "is_playable": track.is_playable,
+                "start_time": track.start_time,
+                "end_time": track.end_time,
             }
             if track.error_msg:
                 track_dict["error_msg"] = track.error_msg

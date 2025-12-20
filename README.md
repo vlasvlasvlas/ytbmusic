@@ -23,7 +23,7 @@
 | 🎵 **Streaming + Cache** | Reproducción inmediata. El sistema descarga en segundo plano mientras escuchas. |
 | 🔈 **Background Playback** | La música sigue sonando al volver al menú (`M`) o importar playlists. |
 | ⬇️ **Smart Download (DownloadManager)** | Una sola cola + worker con **prioridades** (Import/Play/Auto), **dedupe**, cancelación y progreso throttled (UI fluida). |
-| 📥 **Import YouTube** | Importá playlists completas con `I`. Limpia automática de URLs "Watch with Playlist". |
+| 📥 **Smart Import** | Importá **Playlists** o **Videos Individuales** (`I`). Detecta automáticamente **capítulos** y los separa en tracks. Pre-carga el **título** desde YouTube. Limpia URLs "Watch with Playlist". |
 | 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
 | 🎼 **Track Picker** | En el reproductor, abrí la lista de temas con `T` y elegí qué reproducir (sin spamear Next). |
 | 🎨 **Skins ASCII** | 9+ skins retro intercambiables. [Ver guía de Skins](SKINS.md). |
@@ -159,3 +159,13 @@ YTBMusic es altamente personalizable. Podes crear tus propios diseños:
 ## 📄 Licencia
 
 MIT License. Sentite libre de usarlo y modificarlo.
+
+---
+
+## 📅 Avances Recientes (Hoy)
+
+- **✅ Smart Chapter Splitting**: Al importar un video único (ej: Álbum completo en 1 video), el sistema detecta automáticamente los capítulos (timestamps) en la descripción y crea una playlist con cada canción separada. ¡Escuchá álbums completos como si fueran tracks individuales!
+- **✅ Single Video Import**: Soporte nativo para URLs de videos individuales (`youtube.com/watch?v=...`), tratándolos como una playlist de 1 track.
+- **✅ UX Upgrade - Import**: Al pegar una URL, el sistema busca automáticamente el título del video/playlist y lo pre-carga en el diálogo de nombre.
+- **✅ Fixes**: Solucionado el bug donde el diálogo de "Borrar Playlist" se cerraba instantáneamente.
+

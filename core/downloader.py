@@ -227,30 +227,68 @@ class YouTubeDownloader:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
 
-            entries = info.get("entries", []) or []
+            entries = info.get("entries")
             items = []
             base_webpage_url = info.get("webpage_url")
 
-            for entry in entries:
-                # entry may already contain url; if not, build from id
-                eurl = entry.get("url") or entry.get("webpage_url")
-                if not eurl and entry.get("id"):
-                    eurl = f"https://www.youtube.com/watch?v={entry['id']}"
-
-                title = entry.get("title", "Unknown")
-
-                # SOTA: Filter out unusable videos immediately
-                if title in ["[Private video]", "[Deleted video]"]:
-                    continue
-
-                items.append(
-                    {
-                        "title": title,
-                        "artist": entry.get("uploader", "Unknown Artist"),
-                        "duration": entry.get("duration", 0),
-                        "url": eurl,
+            # Handle single video logic
+            if not entries:
+                if info.get("chapters"):
+                    # Split into chapters
+                    for idx, ch in enumerate(info["chapters"]):
+                        start = ch.get("start_time")
+                        end = ch.get("end_time")
+                        title = ch.get("title") or f"Chapter {idx+1}"
+                        # Append hash fragment to URL to make it unique for caching per-chapter if needed
+                        # (though we want to cache the whole file, the track list needs unique logical items)
+                        # We'll handle stripping the hash in _extract_video_id
+                        full_url = f"{info['webpage_url'] or info['url']}#chapter_{idx}"
+                        
+                        items.append({
+                            "title": title,
+                            "artist": info.get("uploader", "Unknown Artist"),
+                            "duration": (end - start) if (end and start) else 0,
+                            "url": full_url,
+                            "start_time": start,
+                            "end_time": end
+                        })
+                    return {
+                        "title": info.get("title", "Imported Playlist"),
+                        "count": len(items),
+                        "items": items,
+                        "source_url": base_webpage_url or url,
                     }
-                )
+                
+                # If no entries and no chapters, treat as single video
+                elif info.get("id") and info.get("title"):
+                    entries = [info]
+                else:
+                    entries = []
+
+            # If items populated by chapters, we skip the normal entry loop
+            # Otherwise we process standard entries
+            if not items:
+                for entry in entries:
+                    # entry may already contain url; if not, build from id
+                    eurl = entry.get("url") or entry.get("webpage_url")
+                    if not eurl and entry.get("id"):
+                        eurl = f"https://www.youtube.com/watch?v={entry['id']}"
+
+                    title = entry.get("title", "Unknown")
+
+                    # SOTA: Filter out unusable videos immediately
+                    if title in ["[Private video]", "[Deleted video]"]:
+                        continue
+
+                    items.append(
+                        {
+                            "title": title,
+                            "artist": entry.get("uploader", "Unknown Artist"),
+                            "duration": entry.get("duration", 0),
+                            "url": eurl,
+                        }
+                    )
+            
             return {
                 "title": info.get("title", "Imported Playlist"),
                 "count": len(items),
@@ -372,6 +410,10 @@ class YouTubeDownloader:
 
     def _extract_video_id(self, url: str) -> str:
         """Extract video ID from YouTube URL or generate hash."""
+        # Strip fragment if present
+        if "#" in url:
+            url = url.split("#")[0]
+            
         # Try to extract video ID from URL
         if "v=" in url:
             return url.split("v=")[1].split("&")[0]
