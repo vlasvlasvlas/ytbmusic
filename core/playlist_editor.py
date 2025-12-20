@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -16,10 +17,41 @@ def list_playlists() -> List[str]:
     PLAYLISTS_DIR.mkdir(exist_ok=True)
     return sorted([p.stem for p in PLAYLISTS_DIR.glob("*.json")])
 
+def sanitize_filename(name: str) -> str:
+    """Sanitize playlist name for use as filename."""
+    # Strict sanitization: Alphanumeric, space, underscore, hyphen
+    name = re.sub(r"[^a-zA-Z0-9 \-_]", "", name)
+    # Strip whitespace and collapse spaces
+    name = re.sub(r"\s+", " ", name)
+    return name.strip()
+
+
+def _get_playlist_path(name: str) -> Path:
+    """
+    Get path for playlist and enforce security (jail check).
+    
+    1. Sanitizes the name.
+    2. Resolves path and ensures it is within PLAYLISTS_DIR.
+    """
+    safe_name = sanitize_filename(name)
+    path = (PLAYLISTS_DIR / f"{safe_name}.json").resolve()
+    root = PLAYLISTS_DIR.resolve()
+    
+    # Security check: Prevent path traversal
+    if not str(path).startswith(str(root)):
+        raise ValueError(f"Security detection: Path traversal attempt blocked for '{name}'")
+        
+    return path
+
 
 def load_playlist(name: str) -> Dict:
     """Load playlist JSON by name (without extension)."""
-    path = PLAYLISTS_DIR / f"{name}.json"
+    # Use secure path resolution
+    try:
+        path = _get_playlist_path(name)
+    except ValueError as e:
+        raise FileNotFoundError(str(e))
+
     if not path.exists():
         raise FileNotFoundError(f"Playlist not found: {name}")
     with PLAYLIST_LOCK:
@@ -29,13 +61,20 @@ def load_playlist(name: str) -> Dict:
 def save_playlist(name: str, data: Dict):
     """Persist playlist JSON."""
     PLAYLISTS_DIR.mkdir(exist_ok=True)
-    path = PLAYLISTS_DIR / f"{name}.json"
+    
+    # Use secure path resolution
+    path = _get_playlist_path(name)
+    
+    # Update metadata to match the sanitized filename used (source of truth)
+    data["metadata"]["name"] = path.stem
+    
     with PLAYLIST_LOCK:
         write_json_atomic(path, data)
 
 
 def create_playlist(name: str, description: str = "", author: str = "ytbmusic"):
     """Create a new empty playlist."""
+    # save_playlist handles sanitization and security
     data = {
         "version": "1.0",
         "metadata": {
@@ -52,10 +91,13 @@ def create_playlist(name: str, description: str = "", author: str = "ytbmusic"):
 
 def delete_playlist(name: str):
     """Delete a playlist JSON."""
-    path = PLAYLISTS_DIR / f"{name}.json"
-    with PLAYLIST_LOCK:
-        if path.exists():
-            path.unlink()
+    try:
+        path = _get_playlist_path(name)
+        with PLAYLIST_LOCK:
+            if path.exists():
+                path.unlink()
+    except ValueError:
+        pass  # Blocked path, effectively "not found" or ignored
 
 
 def add_track(
@@ -146,6 +188,7 @@ def import_playlist_from_youtube(
     info = downloader.extract_playlist_items(url)
 
     name = playlist_name or info.get("title") or "Imported Playlist"
+    name = sanitize_filename(name)
 
     added = 0
     skipped = 0

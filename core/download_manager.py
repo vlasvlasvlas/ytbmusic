@@ -271,6 +271,15 @@ class DownloadManager:
                 "current": current,
             }
 
+    def is_downloading(self, url: str) -> bool:
+        """Check if a URL is currently in queue or downloading."""
+        if not url:
+            return False
+        with self._lock:
+            if self._current_task and self._current_task.url == url:
+                return True
+            return url in self._queued_urls
+
     # ---- internals ----
     def _emit(self, event: Dict[str, Any]) -> None:
         try:

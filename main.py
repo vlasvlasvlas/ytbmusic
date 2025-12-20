@@ -1,12 +1,12 @@
-import urwid
-import time
-import signal
-import shutil
-import threading
+import os
 import queue
-from pathlib import Path
-from enum import Enum
+import shutil
+import signal
+import threading
+import time
 from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
 from typing import Dict, Optional
 
 from core.player import MusicPlayer, PlayerState
@@ -24,6 +24,8 @@ from core.playlist_editor import (
 from core.logger import setup_logging
 from ui.skin_loader import SkinLoader
 from ui.animation_loader import AnimationLoader, AnimationWidget
+from ui.views.player_view import PlayerView, pad_lines
+from ui.dialogs import InputDialog, ConfirmDialog
 
 logger = setup_logging()
 
@@ -56,50 +58,46 @@ class SkinMetadata:
     loaded_at: float
 
 
-def pad_lines(lines, width=PAD_WIDTH, height=PAD_HEIGHT):
-    padded = []
-    for line in lines:
-        line = line.rstrip("\n")
-        if len(line) > width:
-            line = line[:width]
-        if len(line) < width:
-            line = line + " " * (width - len(line))
-        padded.append(line)
-    while len(padded) < height:
-        padded.append(" " * width)
-    return padded[:height]
-
-
-class SkinWidget(urwid.WidgetWrap):
-    def __init__(self):
-        self.text = urwid.Text("", align="left")
-        super().__init__(urwid.Filler(self.text, valign="top"))
-
-    def update(self, text):
-        self.text.set_text(text)
 
 
 class StatusBar(urwid.WidgetWrap):
     """Three-line status bar: Info (Top) + Playback Shortcuts (Mid) + App Shortcuts (Bot)."""
 
-    SHORTCUTS_PLAY = "Space=⏯  N/P=⏭⏮  ←/→=Seek  ↑↓=Vol  Z=Shuffle  R=Repeat"
+    SHORTCUTS_PLAY = "Space=⏯  N/P=⏭⏮  ←/→=Seek  ↑/↓=Vol  Z=Shuffle  R=Repeat"
     SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
+    
+    SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  Q=Quit"
+    SHORTCUTS_MENU_APP = "S=Skin  A=Anim"
 
     def __init__(self, context_text=""):
         self.top_line = urwid.Text(context_text, align="center")
         self.mid_line = urwid.Text(self.SHORTCUTS_PLAY, align="center")
         self.bot_line = urwid.Text(self.SHORTCUTS_APP, align="center")
+        
+        # Keep references to AttrWrappers to change styles dynamically
+        self.top_attr = urwid.AttrWrap(self.top_line, "status")
+        self.mid_attr = urwid.AttrWrap(self.mid_line, "status")
+        self.bot_attr = urwid.AttrWrap(self.bot_line, "status")
 
         self._default_info = context_text
 
         self.pile = urwid.Pile(
             [
-                urwid.AttrWrap(self.top_line, "status"),
-                urwid.AttrWrap(self.mid_line, "status"),
-                urwid.AttrWrap(self.bot_line, "status"),
+                self.top_attr,
+                self.mid_attr,
+                self.bot_attr,
             ]
         )
         super().__init__(self.pile)
+        
+    def update_context(self, context: str):
+        """Update shortcuts based on context (menu/player)."""
+        if context == "menu":
+            self.mid_line.set_text(self.SHORTCUTS_MENU)
+            self.bot_line.set_text(self.SHORTCUTS_MENU_APP)
+        elif context == "player":
+            self.mid_line.set_text(self.SHORTCUTS_PLAY)
+            self.bot_line.set_text(self.SHORTCUTS_APP)
 
     def set(self, text):
         """Set the persistent info message (Top Line)."""
@@ -110,13 +108,15 @@ class StatusBar(urwid.WidgetWrap):
         self.top_line.set_text(text)
         self._default_info = text
 
-    def notify(self, text):
+    def notify(self, text, style="status"):
         """Set a transient notification (Top Line)."""
         self.top_line.set_text(text)
+        self.top_attr.set_attr(style)
 
     def clear_notify(self):
         """Restore default info to Top Line."""
         self.top_line.set_text(self._default_info)
+        self.top_attr.set_attr("status")
 
 
 class MessageLog(urwid.WidgetWrap):
@@ -140,201 +140,30 @@ class MessageLog(urwid.WidgetWrap):
         self.listbox.set_focus(len(self.walker) - 1)
 
 
-class MenuListBox(urwid.ListBox):
-    """ListBox that passes certain hotkeys through to unhandled_input."""
-
-    # Keys that should NOT be handled by the ListBox
-    PASSTHROUGH_KEYS = (
-        "i",
-        "I",
-        "d",
-        "D",
-        "q",
-        "Q",
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "a",
-        "A",
-        "b",
-        "B",
-        "c",
-        "C",
-        "e",
-        "E",
-        "f",
-        "F",
-        "g",
-        "G",
-        "h",
-        "H",
-        "j",
-        "J",
-        "k",
-        "K",
-        "l",
-        "L",
-    )
-
-    def keypress(self, size, key):
-        if key in self.PASSTHROUGH_KEYS:
-            return key  # Pass through to unhandled_input
-        return super().keypress(size, key)
 
 
-class InputDialog(urwid.WidgetWrap):
-    """ASCII-styled input dialog for retro aesthetic."""
-
-    def __init__(self, title, label, callback, default_text=""):
-        self.callback = callback
-        self.edit = urwid.Edit(f"  {label}: ", edit_text=default_text)
-        edit_row_index = None
-
-        # ASCII box art header
-        header_art = [
-            "╔════════════════════════════════════════════════════════╗",
-            f"║  {title:^54}  ║",
-            "╠════════════════════════════════════════════════════════╣",
-        ]
-
-        footer_art = [
-            "╠════════════════════════════════════════════════════════╣",
-            "║     [Enter] Confirm            [Esc] Cancel            ║",
-            "╚════════════════════════════════════════════════════════╝",
-        ]
-
-        body_widgets = []
-        for line in header_art:
-            body_widgets.append(urwid.Text(line))
-        body_widgets.append(
-            urwid.Text("║                                                          ║")
-        )
-        body_widgets.append(
-            urwid.Columns(
-                [
-                    ("fixed", 2, urwid.Text("║ ")),
-                    self.edit,
-                    ("fixed", 2, urwid.Text(" ║")),
-                ]
-            )
-        )
-        edit_row_index = len(body_widgets) - 1
-        body_widgets.append(
-            urwid.Text("║                                                          ║")
-        )
-        for line in footer_art:
-            body_widgets.append(urwid.Text(line))
-
-        pile = urwid.Pile(body_widgets)
-        if edit_row_index is not None:
-            pile.focus_position = edit_row_index
-        fill = urwid.Filler(pile, valign="middle")
-        super().__init__(fill)
-
-    def keypress(self, size, key):
-        if key == "enter":
-            self.callback(self.edit.edit_text)
-        elif key == "esc":
-            self.callback(None)
-        return super().keypress(size, key)
 
 
-class ConfirmDialog(urwid.WidgetWrap):
-    """
-    Modal confirmation dialog that traps focus and keys.
-    Prevents key leakage to underlying widgets.
-    """
 
-    def __init__(self, title, message, on_confirm, on_cancel=None):
-        self.on_confirm = on_confirm
-        self.on_cancel = on_cancel
 
-        yes_btn = urwid.Button(" Yes ")
-        no_btn = urwid.Button(" No ")
 
-        urwid.connect_signal(yes_btn, "click", self._do_confirm)
-        urwid.connect_signal(no_btn, "click", self._do_cancel)
-
-        # Build UI
-        pile = urwid.Pile(
-            [
-                urwid.Text(("title", f" {title} "), align="center"),
-                urwid.Divider(),
-                urwid.Text(message, align="center"),
-                urwid.Divider(),
-                urwid.Columns(
-                    [
-                        (
-                            "weight",
-                            1,
-                            urwid.AttrMap(yes_btn, None, focus_map="highlight"),
-                        ),
-                        (
-                            "weight",
-                            1,
-                            urwid.AttrMap(no_btn, None, focus_map="highlight"),
-                        ),
-                    ],
-                    dividechars=2,
-                ),
-            ]
-        )
-
-        # Frame it
-        frame = urwid.LineBox(urwid.Filler(pile, valign="middle"))
-        super().__init__(frame)
-
-    def _do_confirm(self, button=None):
-        if self.on_confirm:
-            self.on_confirm()
-
-    def _do_cancel(self, button=None):
-        if self.on_cancel:
-            self.on_cancel()
-
-    def keypress(self, size, key):
-        """
-        Trap all keys to ensure modality.
-        Only handle navigation/activation keys, consume everything else.
-        """
-        # Global cancel
-        if key in ("esc", "q", "Q"):
-            self._do_cancel()
-            return None
-
-        # Confirm on Enter if general focus (though buttons handle it too)
-        if key == "enter":
-            # Let the focused widget handle it first (buttons)
-            # If not handled, maybe default to confirm?
-            # Actually, standard behavior is pass to val.
-            pass
-
-        # Allow navigation
-        if key in ("left", "right", "tab", "up", "down"):
-            return super().keypress(size, key)
-
-        # Pass specific activation keys to super (buttons likely need 'enter'/'space')
-        if key in ("enter", " "):
-            return super().keypress(size, key)
-
-        # CONSUME ALL OTHER KEYS (stops leakage to menu)
-        return None
 
 
 class TrackPickerDialog(urwid.WidgetWrap):
     """Scrollable track picker overlay for the current playlist."""
 
     def __init__(
-        self, title: str, tracks: list, current_idx: int, on_select, on_cancel
+        self,
+        title: str,
+        tracks: list,
+        current_idx: int,
+        on_select,
+        on_cancel,
+        status_checker=None,
     ):
         self._on_select = on_select
         self._on_cancel = on_cancel
+        self.status_checker = status_checker
 
         self._title = title
         self._tracks = list(tracks)
@@ -407,7 +236,17 @@ class TrackPickerDialog(urwid.WidgetWrap):
             urwid.connect_signal(
                 btn, "click", lambda b, idx=original_index: self._on_select(idx)
             )
-            self._walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+            attr = "normal"
+            if self.status_checker:
+                status = self.status_checker(self._tracks[original_index])
+                if status == "downloaded":
+                    attr = "track_downloaded"
+                elif status == "downloading":
+                    attr = "track_downloading"
+                elif status == "missing":
+                    attr = "track_missing"
+
+            self._walker.append(urwid.AttrMap(btn, attr, focus_map="highlight"))
 
         focus_pos = 0
         if self._current_idx in self._filtered_indices:
@@ -464,13 +303,22 @@ class TrackPickerDialog(urwid.WidgetWrap):
 
 
 class YTBMusicUI:
-    def __init__(self):
+    def __init__(
+        self,
+        downloader: Optional[YouTubeDownloader] = None,
+        download_manager: Optional[DownloadManager] = None,
+        player: Optional[MusicPlayer] = None,
+        playlist_manager: Optional[PlaylistManager] = None,
+        skin_loader: Optional[SkinLoader] = None,
+        download_events_queue: "Optional[queue.Queue[dict]]" = None,
+    ):
         # Core components
-        self.player = MusicPlayer()
+        # Core components
+        self.player = player or MusicPlayer()
         self.player.on_end_callback = self._on_track_end_callback
-        self.downloader = YouTubeDownloader(cache_dir="cache")
-        self.playlist_manager = PlaylistManager(playlists_dir="playlists")
-        self.skin_loader = SkinLoader()
+        self.downloader = downloader or YouTubeDownloader(cache_dir="cache")
+        self.playlist_manager = playlist_manager or PlaylistManager(playlists_dir="playlists")
+        self.skin_loader = skin_loader or SkinLoader()
 
         # State management
         self.state = UIState.MENU
@@ -529,23 +377,30 @@ class YTBMusicUI:
         self.bg_download_kind = ""
 
         # Download manager (single worker, priority queue)
-        self._download_events: "queue.Queue[dict]" = queue.Queue()
+        # Download manager (single worker, priority queue)
+        self._download_events: "queue.Queue[dict]" = download_events_queue or queue.Queue()
         self._download_event_alarm = None
         self._download_request_summary: Dict[str, Dict[str, int]] = {}
         self._active_download_request_id: Optional[str] = None
         self._auto_download_request_id = new_request_id("AUTO")
         self._pending_autoplay: Optional[Dict[str, str]] = None
         self._player_overlay_active = False
+        self._cookie_prompt_active = False
 
-        self.download_manager = DownloadManager(
-            self.downloader,
-            event_callback=self._download_events.put,
-            progress_throttle_sec=0.25,
-        )
-        self.download_manager.start()
+        if download_manager:
+            self.download_manager = download_manager
+            # Assume it's started by the caller
+        else:
+            self.download_manager = DownloadManager(
+                self.downloader,
+                event_callback=self._download_events.put,
+                progress_throttle_sec=0.25,
+            )
+            self.download_manager.start()
 
         # Widgets
-        self.skin_widget = SkinWidget()
+        self.player_view = PlayerView(self)
+        self.skin_widget = self.player_view.widget
         self.menu_widget = None
         self.loading_widget = None
         self.status = StatusBar("")
@@ -582,6 +437,11 @@ class YTBMusicUI:
                 ("error", "light red,bold", ""),
                 ("success", "light green", ""),
                 ("info", "light blue", ""),
+                ("error_toast", "white", "dark red"),
+                ("success_toast", "black", "light green"),
+                ("track_downloaded", "light green", ""),
+                ("track_missing", "light red", ""),
+                ("track_downloading", "yellow", ""),
             ],
         )
 
@@ -664,168 +524,11 @@ class YTBMusicUI:
 
     # ---------- UI builders ----------
     def _create_menu(self):
-        items = []
-        playlist_focus_map = {}
+        from ui.views.menu_view import MenuView
+        return MenuView(self).create()
 
-        # Title Art
-        title = [
-            "",
-            "  ________  ________  ________  _______   ________  ________   ________  ________ ",
-            " ╱    ╱   ╲╱        ╲╱       ╱ ╱       ╲╲╱    ╱   ╲╱        ╲ ╱        ╲╱        ╲",
-            "╱         ╱        _╱        ╲╱        ╱╱         ╱        _╱_╱       ╱╱         ╱",
-            "╲__     ╱╱╱       ╱╱         ╱         ╱         ╱-        ╱╱         ╱       --╱ ",
-            "  ╲____╱╱ ╲______╱ ╲________╱╲__╱__╱__╱╲________╱╲________╱ ╲________╱╲________╱  ",
-            "",
-        ]
-        for line in title:
-            items.append(urwid.Text(line, align="center"))
 
-        self.menu_walker = urwid.SimpleFocusListWalker(items)
-        self.menu_walker.append(urwid.Text(""))
-        self.menu_walker.append(urwid.Divider("═"))
-        self.menu_walker.append(
-            urwid.AttrMap(
-                urwid.Text("  ♪  SELECT PLAYLIST (1-9)", align="left"), "title"
-            )
-        )
-        self.menu_walker.append(urwid.Divider("─"))
 
-        if not self.playlists:
-            self.menu_walker.append(urwid.Text(""))
-            self.menu_walker.append(
-                urwid.AttrMap(
-                    urwid.Text("     No playlists found!", align="center"), "error"
-                )
-            )
-            self.menu_walker.append(
-                urwid.Text("     Add .json files to playlists/ folder", align="center")
-            )
-        else:
-            for i, pl_name in enumerate(self.playlists[:9]):
-                meta = self._get_playlist_metadata(pl_name)
-
-                # Get download stats
-                down_count, total_count = self._count_downloaded_tracks(pl_name)
-
-                if meta:
-                    display = f"    [{i+1}] {meta.name} ({down_count}/{total_count} downloaded)"
-                else:
-                    display = f"    [{i+1}] {pl_name} ({down_count}/{total_count})"
-
-                # Highlight selected
-                style = None
-                if i == self.selected_playlist_idx:
-                    display += "  ← SELECTED"
-                    style = "highlight"
-
-                btn = urwid.Button(display)
-                urwid.connect_signal(
-                    btn, "click", lambda b, idx=i: self._on_playlist_select(b, idx)
-                )
-                self.menu_walker.append(
-                    urwid.AttrMap(btn, style, focus_map="highlight")
-                )
-                playlist_focus_map[i] = len(self.menu_walker) - 1
-
-        # Actions for selected playlist
-        if self.selected_playlist_idx is not None and self.selected_playlist_idx < len(
-            self.playlists
-        ):
-
-            self.menu_walker.append(urwid.Divider(" "))
-            self.menu_walker.append(
-                urwid.Text("      Actions for selected:", align="left")
-            )
-
-            # PLAY Button
-            play_btn = urwid.Button(f"      [P] PLAY NOW")
-            urwid.connect_signal(play_btn, "click", lambda b: self._on_play_selected())
-            self.menu_walker.append(
-                urwid.AttrMap(play_btn, None, focus_map="highlight")
-            )
-
-            # DELETE Button
-            del_btn = urwid.Button(f"      [X] DELETE PLAYLIST")
-            urwid.connect_signal(del_btn, "click", lambda b: self._on_delete_selected())
-            self.menu_walker.append(urwid.AttrMap(del_btn, None, focus_map="highlight"))
-
-            # RENAME Button
-            ren_btn = urwid.Button(f"      [E] RENAME PLAYLIST")
-            urwid.connect_signal(ren_btn, "click", lambda b: self._on_rename_selected())
-            self.menu_walker.append(urwid.AttrMap(ren_btn, None, focus_map="highlight"))
-
-        self.menu_walker.append(urwid.Text(""))
-        self.menu_walker.append(urwid.Divider("═"))
-
-        # Import button
-        import_btn = urwid.Button("    [I] Import from YouTube")
-        urwid.connect_signal(
-            import_btn, "click", lambda b: self._prompt_import_playlist()
-        )
-        self.menu_walker.append(urwid.AttrMap(import_btn, None, focus_map="highlight"))
-
-        # Random All button
-        random_btn = urwid.Button("    [R] 🔀 Random All Songs")
-        urwid.connect_signal(random_btn, "click", lambda b: self._on_random_all())
-        self.menu_walker.append(urwid.AttrMap(random_btn, None, focus_map="highlight"))
-
-        self.menu_walker.append(urwid.Divider(" "))
-        skin_keys_label = self._skin_keys_label()
-        self.menu_walker.append(
-            urwid.AttrMap(
-                urwid.Text(f"  🎨  SELECT SKIN ({skin_keys_label})", align="left"),
-                "title",
-            )
-        )
-        self.menu_walker.append(urwid.Divider("─"))
-
-        if not self.skins:
-            self.menu_walker.append(
-                urwid.AttrMap(
-                    urwid.Text("     No skins found!", align="center"), "error"
-                )
-            )
-            self.menu_walker.append(
-                urwid.Text("     Add .txt files to skins/ folder", align="center")
-            )
-        else:
-            for i, skin_name in enumerate(self.skins[: len(self.skin_hotkeys)]):
-                meta = self._get_skin_metadata(skin_name)
-                hotkey = self.skin_hotkeys[i]
-                display = f"    [{hotkey}] {meta.name if meta else skin_name}"
-                if i == self.current_skin_idx:
-                    display += " ← Current"
-                btn = urwid.Button(display)
-                urwid.connect_signal(
-                    btn, "click", lambda b, idx=i: self._on_skin_select(b, idx)
-                )
-                self.menu_walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
-
-        self.menu_walker.append(urwid.Text(""))
-        self.menu_walker.append(
-            urwid.AttrMap(
-                urwid.Text(
-                    "  ↑/↓ Navigate  •  Enter Select  •  Q Quit", align="center"
-                ),
-                "status",
-            )
-        )
-
-        listbox = MenuListBox(self.menu_walker)
-
-        # Keep focus on the selected playlist row if available
-        if (
-            self.selected_playlist_idx is not None
-            and self.selected_playlist_idx in playlist_focus_map
-        ):
-            try:
-                self.menu_walker.set_focus(
-                    playlist_focus_map[self.selected_playlist_idx]
-                )
-            except Exception:
-                pass
-
-        return listbox
 
     def _create_loading_widget(self, message: str):
         frames = ["◐", "◓", "◑", "◒"]  # Spinning circle
@@ -974,6 +677,7 @@ class YTBMusicUI:
 
     def _switch_to_menu(self):
         self.state = UIState.MENU
+        self.status.update_context("menu")
         self._player_overlay_active = False
         # Do NOT stop the player here to allow background playback
         # self.player.stop()
@@ -1006,6 +710,7 @@ class YTBMusicUI:
 
     def _switch_to_player(self):
         self.state = UIState.PLAYER
+        self.status.update_context("player")
         self._player_overlay_active = False
         if self.spinner_alarm:
             self.loop.remove_alarm(self.spinner_alarm)
@@ -1018,7 +723,9 @@ class YTBMusicUI:
     # ---------- helpers ----------
     def _handle_error(self, error: Exception, context: str = ""):
         error_msg = str(error)[:60]
-        self.status.set(f"❌ Error: {error_msg} • Press M for menu")
+        self.status.notify(f"❌ Error: {error_msg}", style="error_toast")
+        # Auto-clear after 5 seconds
+        self.loop.set_alarm_in(5.0, lambda l, d: self.status.clear_notify())
         logger.error(
             "ERROR [%s]: %s",
             context or "unknown",
@@ -1238,6 +945,18 @@ class YTBMusicUI:
             if title:
                 self.log_activity(f"Failed: {title}", "error")
 
+            err_l = (err or "").lower()
+            auth_tokens = [
+                "sign in to confirm you're not a bot",
+                "confirm you're not a bot",
+                "--cookies-from-browser",
+                "too many requests",
+                "http error 429",
+            ]
+            if any(token in err_l for token in auth_tokens):
+                self._handle_auth_challenge(err or "")
+                return
+
             # Persist "unplayable" for known cases so we don't retry forever
             if task and getattr(task, "playlist", ""):
                 reason = None
@@ -1293,6 +1012,85 @@ class YTBMusicUI:
             self._active_download_request_id = None
             return
 
+    def _handle_auth_challenge(self, error_message: str):
+        """Pause downloads and prompt the user to refresh cookies."""
+        if getattr(self, "_cookie_prompt_active", False):
+            return
+
+        self._cookie_prompt_active = True
+        try:
+            self.download_manager.cancel_all(cancel_in_progress=True)
+        except Exception:
+            pass
+
+        browser_hint = os.environ.get("YTBMUSIC_COOKIES_BROWSER", "firefox")
+        browser_label = browser_hint.split(":", 1)[0].title()
+        instructions = (
+            "YouTube está pidiendo que confirmes que sos un humano.\n"
+            f"1) Abrí {browser_label} y logueate en YouTube.\n"
+            "2) Volvé a YTBMusic y elegí 'Yes' para refrescar las cookies automáticamente."
+        )
+
+        self.status.notify("⚠️ YouTube pidió verificación. Seguí las instrucciones.")
+
+        self._show_confirm_dialog(
+            "Verificación requerida",
+            instructions,
+            on_confirm=lambda: self._start_cookie_refresh(browser_hint),
+            on_cancel=self._cancel_cookie_refresh,
+        )
+
+    def _cancel_cookie_refresh(self):
+        self._cookie_prompt_active = False
+        self.status.set("Actualización de cookies cancelada")
+
+    def _start_cookie_refresh(self, browser_hint: str):
+        """Run yt-dlp cookies export in a background thread."""
+        self._switch_to_loading("Actualizando cookies...")
+
+        def worker():
+            try:
+                path = self.downloader.refresh_cookies_from_browser(browser=browser_hint)
+                self.loop.set_alarm_in(
+                    0,
+                    lambda l, d: self._cookie_refresh_result(True, browser_hint, path, None),
+                )
+            except Exception as e:
+                self.loop.set_alarm_in(
+                    0,
+                    lambda l, d: self._cookie_refresh_result(
+                        False, browser_hint, None, str(e)
+                    ),
+                )
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _cookie_refresh_result(
+        self,
+        success: bool,
+        browser_hint: str,
+        cookie_path: Optional[str],
+        error: Optional[str],
+    ):
+        self._cookie_prompt_active = False
+        self._switch_to_menu()
+
+        browser_label = browser_hint.split(":", 1)[0].title()
+        if success:
+            msg = (
+                f"Cookies actualizadas desde {browser_label} ✓. "
+                "Volvé a intentar la descarga."
+            )
+            self.status.notify(msg)
+            self.log_activity(msg, "success")
+            self.loop.set_alarm_in(6.0, lambda l, d: self.status.clear_notify())
+        else:
+            error_msg = error or "Error desconocido"
+            self.status.set(f"Error al refrescar cookies: {error_msg}")
+            self.log_activity(
+                f"Cookie refresh failed ({browser_label}): {error_msg}", "error"
+            )
+
     def _prompt_import_playlist(self):
         """Show dialog to import a YouTube playlist."""
 
@@ -1318,6 +1116,10 @@ class YTBMusicUI:
                     self.loop.set_alarm_in(0, lambda l, d: show_name_dialog(""))
             
             def show_name_dialog(default_name):
+                # Guard: If user cancelled (state switched back to MENU), abort
+                if self.state != UIState.LOADING:
+                    return
+
                 # Restore menu state so the dialog displays correctly over it
                 self.state = UIState.MENU
                 self.main_widget.original_widget = self.menu_widget
@@ -1893,74 +1695,7 @@ class YTBMusicUI:
         self._skin_next_frame_at = now + max(0.05, float(self._skin_frame_interval_sec))
 
     def _render_skin(self):
-        if self.current_playlist:
-            track = self.current_playlist.get_current_track()
-            if track:
-                cached_path = self.downloader.is_cached(
-                    track.url, title=track.title, artist=track.artist
-                )
-                self.is_cached_playback = cached_path is not None
-
-        context = {
-            "PREV": "<<",
-            "NEXT": ">>",
-            "PLAY": "||" if self.player.is_playing() else "▶",
-            "VOL_DOWN": "─",
-            "VOL_UP": "+",
-            "QUIT": "Q",
-            "TITLE": "",
-            "ARTIST": "",
-            "TIME": "00:00/00:00",
-            "TIME_CURRENT": "00:00",
-            "TIME_TOTAL": "00:00",
-            "PROGRESS": "[          ]",
-            "VOLUME": f"{self.player.volume}%",
-            "STATUS": (
-                "♪"
-                if self.player.is_playing()
-                else ("⌛" if self.is_buffering else "■")
-            ),
-            "NEXT_TRACK": "",
-            "PLAYLIST": "",
-            "TRACK_NUM": "",
-            "CACHE_STATUS": "✓" if self.is_cached_playback else "✗",
-            "SHUFFLE_STATUS": "OFF",
-            "REPEAT_STATUS": "ALL",
-        }
-
-        if self.current_playlist:
-            track = self.current_playlist.get_current_track()
-            if track:
-                context["TITLE"] = track.title[:35]
-                context["ARTIST"] = track.artist[:30]
-                context["PLAYLIST"] = self.current_playlist.get_name()[:25]
-                context["TRACK_NUM"] = self.current_playlist.get_position_info()
-                context["SHUFFLE_STATUS"] = (
-                    "ON" if self.current_playlist.shuffle_enabled else "OFF"
-                )
-                context["REPEAT_STATUS"] = (
-                    self.current_playlist.repeat_mode.value.upper()
-                )
-
-                # Use peek_next() for clean next track prediction
-                next_track = self.current_playlist.peek_next()
-                if next_track:
-                    context["NEXT_TRACK"] = next_track.title[:30]
-
-        info = self.player.get_time_info()
-        context["TIME_CURRENT"] = info["current_formatted"]
-        context["TIME_TOTAL"] = info["total_formatted"]
-        context["TIME"] = f"{info['current_formatted']}/{info['total_formatted']}"
-        if info["total_duration"] > 0:
-            bar_width = 25
-            filled = int((info["percentage"] / 100) * bar_width)
-            context["PROGRESS"] = "[" + "█" * filled + "░" * (bar_width - filled) + "]"
-
-        lines = pad_lines(self.skin_lines, PAD_WIDTH, PAD_HEIGHT)
-        rendered = self.skin_loader.render(
-            lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT
-        )
-        self.skin_widget.update("\n".join(rendered))
+        self.player_view.render()
 
     def _load_skin(self, idx):
         if not self.skins:
@@ -2460,7 +2195,29 @@ def main():
         print("   Starting in 2 seconds...")
         time.sleep(2)
     try:
-        app = YTBMusicUI()
+        # Dependency Injection Wiring
+        events_queue = queue.Queue()
+        
+        player = MusicPlayer()
+        downloader = YouTubeDownloader(cache_dir="cache")
+        playlist_manager = PlaylistManager(playlists_dir="playlists")
+        skin_loader = SkinLoader()
+
+        download_manager = DownloadManager(
+            downloader,
+            event_callback=events_queue.put,
+            progress_throttle_sec=0.25,
+        )
+        download_manager.start()
+
+        app = YTBMusicUI(
+            downloader=downloader,
+            download_manager=download_manager,
+            player=player,
+            playlist_manager=playlist_manager,
+            skin_loader=skin_loader,
+            download_events_queue=events_queue,
+        )
         app.run()
     except Exception as e:
         logger.critical("Critical Error: %s", e, exc_info=(type(e), e, e.__traceback__))

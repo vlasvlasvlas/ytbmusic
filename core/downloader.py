@@ -4,12 +4,17 @@ YouTube Downloader Integration
 Handles yt-dlp for extracting stream URLs and downloading audio.
 """
 
-import yt_dlp
-from pathlib import Path
-from typing import Dict, Optional, Callable
 import hashlib
 import logging
 import os
+import time
+import random
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, Optional, Callable
+
+import yt_dlp
 from core.logger import setup_logging
 
 logger = logging.getLogger("YouTubeDownloader")
@@ -20,6 +25,25 @@ class YouTubeDownloader:
 
     # Estimated size per track in bytes (5MB average for audio)
     ESTIMATED_TRACK_SIZE = 5 * 1024 * 1024
+    MAX_RETRIES = 3
+
+    @staticmethod
+    def validate_url(url: str):
+        """Ensure URL is valid, safe (http/https), and from YouTube."""
+        if not url:
+            raise ValueError("Empty URL")
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise ValueError("Invalid URL scheme: must be http or https")
+        # Basic check to prevent local file access
+        if "file://" in url:
+            raise ValueError("Local file URLs are not allowed")
+            
+        # Domain allowlist
+        allowed_domains = ["youtube.com", "www.youtube.com", "youtu.be", "music.youtube.com"]
+        # Simple string check (robust enough for typical usage, parsed check better but needs urllib)
+        is_allowed = any(domain in url for domain in allowed_domains)
+        if not is_allowed:
+            raise ValueError("Security: Only YouTube URLs are allowed")
 
     def __init__(self, cache_dir: str = "cache"):
         self.cache_dir = Path(cache_dir)
@@ -52,7 +76,141 @@ class YouTubeDownloader:
             ],
         }
 
+        self._apply_cookie_strategy()
+
         logger.info("YouTubeDownloader initialized")
+
+    def _apply_cookie_strategy(self):
+        """
+        Configure yt-dlp authentication automatically.
+
+        Priority:
+        1. Explicit file via YTBMUSIC_COOKIES_FILE or cookies.txt.
+        2. Explicit browser via YTBMUSIC_COOKIES_BROWSER.
+        3. Best-effort autodetect of popular Chromium/Firefox/Safari profiles.
+        """
+
+        if os.environ.get("YTBMUSIC_DISABLE_COOKIES"):
+            logger.warning("Cookie strategy disabled via YTBMUSIC_DISABLE_COOKIES")
+            return
+
+        cookie_file_env = os.environ.get("YTBMUSIC_COOKIES_FILE")
+        cookie_path = Path(cookie_file_env) if cookie_file_env else Path("cookies.txt")
+        if cookie_path.exists():
+            self._set_cookie_file(cookie_path)
+            return
+
+        browser_pref = os.environ.get("YTBMUSIC_COOKIES_BROWSER")
+        browser_candidates = [
+            "chrome",
+            "brave",
+            "edge",
+            "vivaldi",
+            "opera",
+            "chromium",
+            "firefox",
+            "safari",
+        ]
+        if browser_pref:
+            browser_candidates = [browser_pref] + [
+                b for b in browser_candidates if b != browser_pref
+            ]
+
+        for browser in browser_candidates:
+            if self._set_browser_cookies(browser):
+                return
+
+        logger.warning(
+            "No cookies configured (set cookies.txt or YTBMUSIC_COOKIES_* env vars). "
+            "YouTube may require manual verification."
+        )
+
+    def _set_cookie_file(self, path: Path):
+        logger.info(f"Using cookies file: {path}")
+        self.ydl_opts_info["cookiefile"] = str(path)
+        self.ydl_opts_download["cookiefile"] = str(path)
+
+    def _set_browser_cookies(self, browser: str) -> bool:
+        """
+        Register a browser profile for yt-dlp cookie extraction.
+        Returns True once configured (yt-dlp will raise later if browser unsupported).
+        """
+        browser = browser.lower()
+        supported = {
+            "chrome",
+            "chromium",
+            "brave",
+            "vivaldi",
+            "edge",
+            "opera",
+            "safari",
+            "firefox",
+        }
+        if browser not in supported:
+            return False
+
+        logger.info(f"Attempting cookies_from_browser='{browser}'")
+        spec = (browser,)
+        self.ydl_opts_info["cookiesfrombrowser"] = spec
+        self.ydl_opts_download["cookiesfrombrowser"] = spec
+        return True
+
+    def refresh_cookies_from_browser(
+        self,
+        browser: Optional[str] = None,
+        output: Optional[str] = None,
+        test_url: Optional[str] = None,
+    ) -> str:
+        """
+        Invoke yt-dlp to export cookies from a browser profile into a cookies.txt file.
+        Returns the path to the cookies file if successful.
+        """
+
+        browser = (
+            browser
+            or os.environ.get("YTBMUSIC_COOKIES_BROWSER")
+            or "firefox"
+        )
+        cookie_file_env = output or os.environ.get("YTBMUSIC_COOKIES_FILE")
+        cookie_path = Path(cookie_file_env) if cookie_file_env else Path("cookies.txt")
+        cookie_path.parent.mkdir(parents=True, exist_ok=True)
+
+        test_url = (
+            test_url
+            or os.environ.get("YTBMUSIC_COOKIES_TEST_URL")
+            or "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        )
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "yt_dlp",
+            "--simulate",
+            "--cookies-from-browser",
+            browser,
+            "--cookies",
+            str(cookie_path),
+            test_url,
+        ]
+
+        logger.info(f"Refreshing cookies via browser='{browser}' → {cookie_path}")
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, check=False
+        )
+        if proc.returncode != 0:
+            err_output = proc.stderr.strip() or proc.stdout.strip()
+            raise RuntimeError(
+                f"yt-dlp cookies export failed ({browser}): {err_output}"
+            )
+
+        if not cookie_path.exists():
+            raise RuntimeError(
+                f"Cookies export did not create {cookie_path}. "
+                "Please ensure the browser has an active YouTube session."
+            )
+
+        self._set_cookie_file(cookie_path)
+        return str(cookie_path)
 
     def check_disk_space(self, track_count: int) -> tuple:
         """
@@ -89,6 +247,7 @@ class YouTubeDownloader:
         Returns:
             Dictionary with title, artist (uploader), duration, thumbnail, etc.
         """
+        self.validate_url(url)
         try:
             with yt_dlp.YoutubeDL(self.ydl_opts_info) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -117,6 +276,7 @@ class YouTubeDownloader:
         Returns:
             Dictionary with 'title', 'artist', 'duration' or None if failed
         """
+        self.validate_url(url)
         try:
             info = self.extract_info(url)
             if not info:
@@ -183,25 +343,36 @@ class YouTubeDownloader:
         Returns:
             Direct audio stream URL
         """
-        try:
-            with yt_dlp.YoutubeDL(self.ydl_opts_info) as ydl:
-                info = ydl.extract_info(url, download=False)
+        self.validate_url(url)
+        info = None
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                with yt_dlp.YoutubeDL(self.ydl_opts_info) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                break
+            except Exception as e:
+                if attempt < self.MAX_RETRIES and (
+                    "429" in str(e) or "too many requests" in str(e).lower()
+                ):
+                    wait = (attempt + 1) * 30 + random.uniform(1, 10)
+                    logger.warning(
+                        f"HTTP 429. Retrying get_stream_url in {wait:.1f}s..."
+                    )
+                    time.sleep(wait)
+                    continue
+                raise Exception(f"Failed to get stream URL from {url}: {e}")
 
-                # Get best audio format
-                formats = info.get("formats", [])
-                audio_formats = [f for f in formats if f.get("acodec") != "none"]
+        if not info:
+            raise Exception(f"Failed to get stream URL from {url}: empty info")
 
-                if audio_formats:
-                    # Sort by quality (abr = audio bitrate)
-                    # Use 'or 0' to handle None values that get() might return
-                    audio_formats.sort(key=lambda x: x.get("abr") or 0, reverse=True)
-                    return audio_formats[0]["url"]
+        formats = info.get("formats", [])
+        audio_formats = [f for f in formats if f.get("acodec") != "none"]
 
-                # Fallback to any format with audio
-                return info.get("url")
+        if audio_formats:
+            audio_formats.sort(key=lambda x: x.get("abr") or 0, reverse=True)
+            return audio_formats[0]["url"]
 
-        except Exception as e:
-            raise Exception(f"Failed to get stream URL from {url}: {e}")
+        return info.get("url")
 
     def extract_playlist_items(self, url: str):
         """
@@ -209,6 +380,7 @@ class YouTubeDownloader:
 
         Returns list of dicts with: title, artist (uploader), duration, url.
         """
+        self.validate_url(url)
         try:
             # 1. Clean URL: If it has v=...&list=..., strip v= to process as pure playlist
             # This fixes "Watch with Playlist" URLs often failing in flat extraction
@@ -224,8 +396,18 @@ class YouTubeDownloader:
             opts["extract_flat"] = (
                 "in_playlist"  # More robust than True for flat extraction
             )
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
+            for attempt in range(self.MAX_RETRIES + 1):
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                    break
+                except Exception as e:
+                    if attempt < self.MAX_RETRIES and ("429" in str(e) or "Too many requests" in str(e).lower()):
+                        wait = (attempt + 1) * 30 + random.uniform(1, 10)
+                        logger.warning(f"HTTP 429. Retrying extract_playlist in {wait:.1f}s...")
+                        time.sleep(wait)
+                        continue
+                    raise
 
             entries = info.get("entries")
             items = []
@@ -319,6 +501,14 @@ class YouTubeDownloader:
         Returns:
             Path to downloaded file
         """
+        self.validate_url(url)
+
+        # Anti-Bot: Random delay to mimic human behavior
+        # User requested > 3s
+        delay = random.uniform(3.5, 8.0)
+        logger.debug(f"Sleeping {delay:.2f}s before download...")
+        time.sleep(delay)
+
         try:
             # Generate cache filename
             if output_path is None:
@@ -336,8 +526,18 @@ class YouTubeDownloader:
 
             opts["outtmpl"] = output_path
 
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
+            for attempt in range(self.MAX_RETRIES + 1):
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        ydl.download([url])
+                    break
+                except Exception as e:
+                    if attempt < self.MAX_RETRIES and ("429" in str(e) or "Too many requests" in str(e).lower()):
+                        wait = (attempt + 1) * 30 + random.uniform(1, 10)
+                        logger.warning(f"HTTP 429. Retrying download in {wait:.1f}s...")
+                        time.sleep(wait)
+                        continue
+                    raise
 
             # Return actual file path (yt-dlp adds extension)
             final_path = output_path.replace(".%(ext)s", ".m4a")
@@ -388,9 +588,9 @@ class YouTubeDownloader:
         else:
             name = title
 
-        # Keep only alphanumeric, spaces, and the specific separator placeholder
-        # First remove everything that isn't alphanumeric or space or underscore
-        name = re.sub(r"[^a-zA-Z0-9\s_]", "", name)
+        # Keep only alphanumeric, spaces, underscores, and hyphens
+        # First remove everything else
+        name = re.sub(r"[^a-zA-Z0-9\s_\-]", "", name)
 
         # Replace the separator with actual underscore (and surrounding spaces if any)
         name = name.replace("__SEP__", "_")
