@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
+import urwid
+
 from core.player import MusicPlayer, PlayerState
 from core.downloader import YouTubeDownloader
 from core.download_manager import DownloadManager, new_request_id
@@ -67,7 +69,7 @@ class StatusBar(urwid.WidgetWrap):
     SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
     
     SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  Q=Quit"
-    SHORTCUTS_MENU_APP = "S=Skin  A=Anim"
+    SHORTCUTS_MENU_APP = "S=Skin  A=Anim  D=Download"
 
     def __init__(self, context_text=""):
         self.top_line = urwid.Text(context_text, align="center")
@@ -492,7 +494,7 @@ class YTBMusicUI:
     def _count_downloaded_tracks(self, playlist_name: str) -> tuple[int, int]:
         """
         Count downloaded tracks for a playlist.
-        Returns (downloaded_count, total_count).
+        Returns (downloaded_count, total_playable_count).
         Optimized with caching to avoid disk I/O on every frame.
         """
         # Check cache (10 second TTL for download counts as they change often during DL)
@@ -507,10 +509,14 @@ class YTBMusicUI:
             mgr = PlaylistManager()
             pl = mgr.load_playlist(playlist_name)
 
-            total = len(pl.tracks)
+            total = 0
             downloaded = 0
 
             for track in pl.tracks:
+                # Skip unplayable tracks (deleted/private/unavailable)
+                if getattr(track, "is_playable", True) is False:
+                    continue
+                total += 1
                 if self.downloader.is_cached(
                     track.url, title=track.title, artist=track.artist
                 ):
@@ -1079,11 +1085,13 @@ class YTBMusicUI:
         if success:
             msg = (
                 f"Cookies actualizadas desde {browser_label} ✓. "
-                "Volvé a intentar la descarga."
+                "Retomando descargas pendientes..."
             )
             self.status.notify(msg)
             self.log_activity(msg, "success")
             self.loop.set_alarm_in(6.0, lambda l, d: self.status.clear_notify())
+            # Reanudar auto-download global una vez que las cookies están listas
+            self.loop.set_alarm_in(0.5, lambda l, d: self._start_auto_downloads())
         else:
             error_msg = error or "Error desconocido"
             self.status.set(f"Error al refrescar cookies: {error_msg}")
@@ -1342,21 +1350,68 @@ class YTBMusicUI:
         self.bg_download_queue_size = 0
         logger.info("[DL] Downloads cancelled")
 
+    def _collect_missing_tracks(self, playlist_name: str) -> list:
+        """Return track dicts that are not cached for given playlist."""
+        try:
+            playlist = self.playlist_manager.load_playlist(playlist_name)
+        except Exception:
+            return []
+
+        missing = []
+        for track in getattr(playlist, "tracks", []):
+            url = getattr(track, "url", None)
+            if not url:
+                continue
+            # Skip unplayable tracks (marked as unavailable/deleted/private)
+            if getattr(track, "is_playable", True) is False:
+                continue
+            title = getattr(track, "title", "")
+            artist = getattr(track, "artist", "")
+            if self.downloader.is_cached(url, title=title, artist=artist):
+                continue
+            missing.append(
+                {
+                    "title": title,
+                    "artist": artist,
+                    "url": url,
+                    "_playlist": playlist_name,
+                }
+            )
+        return missing
+
     def _on_download_all(self):
         """Trigger download of all missing tracks in current playlist."""
         if not self.current_playlist:
-            # If called from menu with no active playlist context,
-            # maybe ask user to pick one? For now let's just ignore or status
             self.status.set("Play a playlist first to download it!")
             return
 
         pl_name = self.current_playlist.get_name()
-        missing = get_missing_tracks(pl_name)
+        missing = self._collect_missing_tracks(pl_name)
         if not missing:
             self.status.set("All tracks are already downloaded! ✓")
             return
 
         self._start_batch_download(missing)
+
+    def _download_selected_playlist(self):
+        """Download missing tracks for the playlist selected in the menu."""
+        if (
+            self.selected_playlist_idx is None
+            or self.selected_playlist_idx >= len(self.playlists)
+        ):
+            self.status.set("Select a playlist first!")
+            return
+
+        pl_name = self.playlists[self.selected_playlist_idx]
+        missing = self._collect_missing_tracks(pl_name)
+        if not missing:
+            self.status.set(f"'{pl_name}' ya está descargada ✓")
+            return
+
+        self._start_background_downloads(
+            missing, start_delay=0.0, default_playlist=pl_name, force_reset=False
+        )
+        self.status.notify(f"⬇️ Descargando {len(missing)} track(s) de '{pl_name}'")
 
     # ---------- actions ----------
     def _on_playlist_select(self, button, playlist_idx):
@@ -1643,6 +1698,9 @@ class YTBMusicUI:
 
     # ---------- lifecycle ----------
     def run(self):
+        # Validate playlists at startup (fix duplicates, sanitize titles, etc.)
+        self._run_startup_validation()
+        
         if self.skins:
             self._safe_call(self._load_skin, 0)
         else:
@@ -1654,6 +1712,16 @@ class YTBMusicUI:
         self.loop.set_alarm_in(2.0, lambda l, d: self._start_auto_downloads())
 
         self.loop.run()
+    
+    def _run_startup_validation(self):
+        """Validate all playlists at startup."""
+        try:
+            from core.playlist_validator import run_validation
+            report = run_validation(auto_fix=True)
+            if report.playlists_fixed:
+                logger.info(f"[STARTUP] {report.summary()}")
+        except Exception as e:
+            logger.warning(f"[STARTUP] Playlist validation failed: {e}")
 
     def _start_auto_downloads(self):
         """Auto-download missing tracks from all playlists on startup."""
@@ -2146,6 +2214,11 @@ class YTBMusicUI:
             elif key in ("e", "E"):
                 # Defer to next tick so the overlay isn't clobbered by the current input cycle
                 self.loop.set_alarm_in(0, lambda l, d: self._on_rename_selected())
+            elif key in ("d", "D"):
+                # Defer to next tick to avoid input cycle race conditions
+                self.loop.set_alarm_in(0, lambda l, d: self._download_selected_playlist())
+            elif key in ("a", "A"):
+                self._toggle_animation()
             return
         if key == " ":
             self.player.toggle_pause()

@@ -18,9 +18,9 @@ def list_playlists() -> List[str]:
     return sorted([p.stem for p in PLAYLISTS_DIR.glob("*.json")])
 
 def sanitize_filename(name: str) -> str:
-    """Sanitize playlist name for use as filename."""
-    # Strict sanitization: Alphanumeric, space, underscore, hyphen
-    name = re.sub(r"[^a-zA-Z0-9 \-_]", "", name)
+    """Sanitize playlist name for use as filename (alphanumeric + space + underscore only)."""
+    # Strict sanitization: Alphanumeric, space, underscore (NO hyphens for consistency)
+    name = re.sub(r"[^a-zA-Z0-9 _]", "", name)
     # Strip whitespace and collapse spaces
     name = re.sub(r"\s+", " ", name)
     return name.strip()
@@ -220,8 +220,12 @@ def import_playlist_from_youtube(
             if item["url"] in existing_urls:
                 skipped += 1
                 continue
+            # Sanitize title to alphanumeric (no special chars)
+            raw_title = item.get("title", "Unknown")
+            clean_title = re.sub(r'[^\w\s\-]', '', raw_title)
+            clean_title = re.sub(r'\s+', ' ', clean_title).strip() or "Unknown"
             track_entry = {
-                "title": item.get("title", "Unknown"),
+                "title": clean_title,
                 "artist": item.get("artist", "Unknown Artist"),
                 "url": item.get("url"),
                 "tags": [],
@@ -321,6 +325,9 @@ def get_missing_tracks(playlist_name: str) -> List[Dict]:
             url = track.get("url")
             title = track.get("title")
             artist = track.get("artist")
+            # Skip unplayable tracks (deleted/private/unavailable)
+            if track.get("is_playable") is False:
+                continue
             if url and not downloader.is_cached(url, title=title, artist=artist):
                 missing.append(track)
 

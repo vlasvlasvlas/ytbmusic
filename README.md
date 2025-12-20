@@ -97,7 +97,7 @@ Variables de entorno útiles:
 | `YTBMUSIC_COOKIES_BROWSER` | Nombre del navegador soportado por yt-dlp (`chrome`, `firefox`, etc.). |
 | `YTBMUSIC_DISABLE_COOKIES` | Define cualquier valor para desactivar el auto-config (solo si sabés lo que hacés). |
 
-Si YouTube bloquea una descarga con “Sign in to confirm you’re not a bot”, la app cancelará la cola, mostrará instrucciones sobre qué navegador abrir y, al confirmar, ejecutará automáticamente `yt-dlp --cookies-from-browser …` para generar `cookies.txt`. Sólo tenés que abrir el browser indicado, asegurarte de que YouTube esté abierto/logueado y presionar “Yes” cuando vuelvas a YTBMusic. Después de unos segundos las descargas continúan solas.
+Si YouTube bloquea una descarga con “Sign in to confirm you’re not a bot”, la app cancelará la cola, mostrará instrucciones sobre qué navegador abrir y, al confirmar, ejecutará automáticamente `yt-dlp --cookies-from-browser …` para generar `cookies.txt`. Sólo tenés que abrir el browser indicado, asegurarte de que YouTube esté abierto/logueado y presionar “Yes” cuando vuelvas a YTBMusic. Al terminar, el auto-download global se reanuda solo y continúa bajando todo lo pendiente.
 
 Para generar `cookies.txt` seguí la guía oficial de yt-dlp: <https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp>.
 Sin cookies, YouTube puede responder “Sign in to confirm you’re not a bot” y las descargas fallarán.
@@ -116,7 +116,9 @@ Sin cookies, YouTube puede responder “Sign in to confirm you’re not a bot”
 | `I` | Importar nueva playlist (URL de YouTube) |
 | `E` | Renombrar Playlist seleccionada |
 | `R` | Random All Songs (Shuffle global) |
-| `A-L` | Cambiar skin rápido |
+| `D` | Descargar pendientes de la playlist seleccionada |
+| `A` | Mostrar/Ocultar animación en el footer |
+| `B-L` | Cambiar skin rápido |
 | `Q` | Salir |
 
 ### Reproductor
