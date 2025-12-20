@@ -191,9 +191,9 @@ class MenuListBox(urwid.ListBox):
 class InputDialog(urwid.WidgetWrap):
     """ASCII-styled input dialog for retro aesthetic."""
 
-    def __init__(self, title, label, callback):
+    def __init__(self, title, label, callback, default_text=""):
         self.callback = callback
-        self.edit = urwid.Edit(f"  {label}: ")
+        self.edit = urwid.Edit(f"  {label}: ", edit_text=default_text)
         edit_row_index = None
 
         # ASCII box art header
@@ -239,14 +239,92 @@ class InputDialog(urwid.WidgetWrap):
 
     def keypress(self, size, key):
         if key == "enter":
-            self.callback(self.edit.get_edit_text())
-            return None  # Key handled
+            self.callback(self.edit.edit_text)
         elif key == "esc":
             self.callback(None)
-            return None  # Key handled
-        else:
-            # Let the edit widget handle the key
+        return super().keypress(size, key)
+
+
+class ConfirmDialog(urwid.WidgetWrap):
+    """
+    Modal confirmation dialog that traps focus and keys.
+    Prevents key leakage to underlying widgets.
+    """
+
+    def __init__(self, title, message, on_confirm, on_cancel=None):
+        self.on_confirm = on_confirm
+        self.on_cancel = on_cancel
+
+        yes_btn = urwid.Button(" Yes ")
+        no_btn = urwid.Button(" No ")
+
+        urwid.connect_signal(yes_btn, "click", self._do_confirm)
+        urwid.connect_signal(no_btn, "click", self._do_cancel)
+
+        # Build UI
+        pile = urwid.Pile(
+            [
+                urwid.Text(("title", f" {title} "), align="center"),
+                urwid.Divider(),
+                urwid.Text(message, align="center"),
+                urwid.Divider(),
+                urwid.Columns(
+                    [
+                        (
+                            "weight",
+                            1,
+                            urwid.AttrMap(yes_btn, None, focus_map="highlight"),
+                        ),
+                        (
+                            "weight",
+                            1,
+                            urwid.AttrMap(no_btn, None, focus_map="highlight"),
+                        ),
+                    ],
+                    dividechars=2,
+                ),
+            ]
+        )
+
+        # Frame it
+        frame = urwid.LineBox(urwid.Filler(pile, valign="middle"))
+        super().__init__(frame)
+
+    def _do_confirm(self, button=None):
+        if self.on_confirm:
+            self.on_confirm()
+
+    def _do_cancel(self, button=None):
+        if self.on_cancel:
+            self.on_cancel()
+
+    def keypress(self, size, key):
+        """
+        Trap all keys to ensure modality.
+        Only handle navigation/activation keys, consume everything else.
+        """
+        # Global cancel
+        if key in ("esc", "q", "Q"):
+            self._do_cancel()
+            return None
+
+        # Confirm on Enter if general focus (though buttons handle it too)
+        if key == "enter":
+            # Let the focused widget handle it first (buttons)
+            # If not handled, maybe default to confirm?
+            # Actually, standard behavior is pass to val.
+            pass
+
+        # Allow navigation
+        if key in ("left", "right", "tab", "up", "down"):
             return super().keypress(size, key)
+
+        # Pass specific activation keys to super (buttons likely need 'enter'/'space')
+        if key in ("enter", " "):
+            return super().keypress(size, key)
+
+        # CONSUME ALL OTHER KEYS (stops leakage to menu)
+        return None
 
 
 class TrackPickerDialog(urwid.WidgetWrap):
@@ -803,7 +881,7 @@ class YTBMusicUI:
         self.spinner_alarm = self.loop.set_alarm_in(0.1, self._animate_loading)
         self.status.set("Loading... Please wait")
 
-    def _show_input_dialog(self, title, label, callback):
+    def _show_input_dialog(self, title, label, callback, default_text=""):
         """Show a modal input dialog."""
 
         def on_done(text):
@@ -815,7 +893,7 @@ class YTBMusicUI:
 
         # Keep menu visible underneath but freeze state so bg refresh doesn't replace overlay
         self.state = UIState.EDIT
-        dialog = InputDialog(title, label, on_done)
+        dialog = InputDialog(title, label, on_done, default_text=default_text)
         overlay = urwid.Overlay(
             dialog,
             self.menu_widget,
@@ -827,53 +905,32 @@ class YTBMusicUI:
         self.main_widget.original_widget = overlay
 
     def _show_confirm_dialog(self, title, message, on_confirm, on_cancel=None):
-        """Simple yes/no confirmation dialog."""
-        self.state = UIState.EDIT
-
-        def finish():
+        """Show a modal yes/no confirmation dialog."""
+        
+        # Save previous widget to restore later
+        previous_widget = self.main_widget.original_widget
+        
+        def cleanup():
             self.state = UIState.MENU
             self.main_widget.original_widget = self.menu_widget
 
-        def do_confirm(button=None):
-            finish()
+        def wrapped_confirm():
+            cleanup()
+            # Defer execution to avoid callback recursion issues
             self.loop.set_alarm_in(0, lambda l, d: on_confirm())
 
-        def do_cancel(button=None):
-            finish()
-            if on_confirm and on_cancel:
+        def wrapped_cancel():
+            cleanup()
+            if on_cancel:
                 self.loop.set_alarm_in(0, lambda l, d: on_cancel())
 
-        yes_btn = urwid.Button(" Yes ")
-        no_btn = urwid.Button(" No ")
-        urwid.connect_signal(yes_btn, "click", do_confirm)
-        urwid.connect_signal(no_btn, "click", do_cancel)
-
-        pile = urwid.Pile(
-            [
-                urwid.Text(("title", f" {title} "), align="center"),
-                urwid.Divider(),
-                urwid.Text(message, align="center"),
-                urwid.Divider(),
-                urwid.Columns(
-                    [
-                        (
-                            "weight",
-                            1,
-                            urwid.AttrMap(yes_btn, None, focus_map="highlight"),
-                        ),
-                        (
-                            "weight",
-                            1,
-                            urwid.AttrMap(no_btn, None, focus_map="highlight"),
-                        ),
-                    ],
-                    dividechars=2,
-                ),
-            ]
-        )
-        pile.focus_position = 4
+        # Set state to EDIT to block global hotkeys in main loop
+        self.state = UIState.EDIT
+        
+        dialog = ConfirmDialog(title, message, wrapped_confirm, wrapped_cancel)
+        
         overlay = urwid.Overlay(
-            urwid.LineBox(urwid.Filler(pile, valign="middle")),
+            dialog,
             self.menu_widget,
             align="center",
             width=60,
@@ -1243,46 +1300,68 @@ class YTBMusicUI:
             if not url:
                 return
 
-            def on_name_entered(name):
-                self._switch_to_loading("Contacting YouTube...")
-                self.status.notify("⬇️ Importing playlist info...")
-                self.loop.draw_screen()
+            # Sota: Fetch title first to pre-fill the name dialog
+            self._switch_to_loading("Fetching metadata...")
 
-                # Run import in background thread
-                def threaded_import():
-                    try:
-                        logger.info(f"[THREAD] Starting import for URL: {url}")
+            def fetch_metadata_thread():
+                try:
+                    # Use extract_playlist_items to get title quickly (lightweight)
+                    info = self.downloader.extract_playlist_items(url)
+                    suggested_name = info.get("title", "")
+                    # Clean up title if it contains " - Topic" etc? maybe not.
+                    
+                    # Schedule the name dialog on main thread
+                    self.loop.set_alarm_in(0, lambda l, d: show_name_dialog(suggested_name))
+                except Exception as e:
+                    logger.error(f"Metadata fetch failed: {e}")
+                    # Fallback to empty name
+                    self.loop.set_alarm_in(0, lambda l, d: show_name_dialog(""))
+            
+            def show_name_dialog(default_name):
+                # Restore menu state so the dialog displays correctly over it
+                self.state = UIState.MENU
+                self.main_widget.original_widget = self.menu_widget
 
-                        # We can't safely log to UI from thread directly without loop.set_alarm_in
-                        # but we can rely on the loading message for now.
+                def on_name_entered(name):
+                    self._switch_to_loading("Contacting YouTube...")
+                    self.status.notify("⬇️ Importing playlist info...")
+                    self.loop.draw_screen()
 
-                        result = import_playlist_from_youtube(
-                            url, playlist_name=name or None, overwrite=False
-                        )
-                        logger.info(
-                            f"[THREAD] Import result: {result['name']}, added={result['added']}"
-                        )
+                    # Run import in background thread
+                    def threaded_import():
+                        try:
+                            logger.info(f"[THREAD] Starting import for URL: {url}")
 
-                        # Schedule UI update in main thread
-                        self.loop.set_alarm_in(
-                            0, lambda l, d: self._on_import_complete(result)
-                        )
+                            result = import_playlist_from_youtube(
+                                url, playlist_name=name or default_name or None, overwrite=False
+                            )
+                            logger.info(
+                                f"[THREAD] Import result: {result['name']}, added={result['added']}"
+                            )
 
-                    except Exception as e:
-                        logger.error(f"[THREAD] Import error: {e}")
-                        self.loop.set_alarm_in(
-                            0, lambda l, d: self._on_import_error(str(e))
-                        )
+                            # Schedule UI update in main thread
+                            self.loop.set_alarm_in(
+                                0, lambda l, d: self._on_import_complete(result)
+                            )
 
-                self.import_thread = threading.Thread(
-                    target=threaded_import, daemon=True
-                )
-                self.import_thread.start()
+                        except Exception as e:
+                            logger.error(f"[THREAD] Import error: {e}")
+                            self.loop.set_alarm_in(
+                                0, lambda l, d: self._on_import_error(str(e))
+                            )
 
-                # Start polling for thread completion
-                self.loop.set_alarm_in(0.5, self._check_import_thread)
+                    self.import_thread = threading.Thread(
+                        target=threaded_import, daemon=True
+                    )
+                    self.import_thread.start()
 
-            self._show_input_dialog("Playlist Name (Optional)", "Name", on_name_entered)
+                    # Start polling for thread completion
+                    self.loop.set_alarm_in(0.5, self._check_import_thread)
+
+                self._show_input_dialog("Playlist Name (Optional)", "Name", on_name_entered, default_text=default_name)
+            
+            # Start the metadata fetch
+            threading.Thread(target=fetch_metadata_thread, daemon=True).start()
 
         self._show_input_dialog(
             "Import YouTube Playlist", "Playlist URL", on_url_entered
@@ -2039,7 +2118,11 @@ class YTBMusicUI:
                 track.url, title=track.title, artist=track.artist
             )
             if cached_path:
-                self.player.play(cached_path)
+                self.player.play(
+                    cached_path,
+                    start_time=track.start_time,
+                    end_time=track.end_time,
+                )
                 self.is_cached_playback = True
                 self.status.set(f"♪ {track.title} (cached)")
             else:
@@ -2096,8 +2179,14 @@ class YTBMusicUI:
         """Called from thread when stream URL is ready."""
         try:
             self.is_buffering = False
-            self.player.play(stream_url)
-            self.status.set(f"♪ {track.title} (streaming) | " + HELP_TEXT)
+            # Start playback
+            self.player.play(
+                stream_url,
+                start_time=track.start_time,
+                end_time=track.end_time,
+            )
+            self.status.set(f"Playing: {track.title} | " + HELP_TEXT)
+            self._update_now_playing_footer(track)
         except Exception as e:
             logger.error(f"Playback failed: {e}")
             self.is_buffering = False
