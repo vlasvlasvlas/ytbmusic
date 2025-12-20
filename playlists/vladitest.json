@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "vladitest",
+    "description": "Playlist de referencia para tests automáticos.",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": [
+    {
+      "title": "Refactor Sanity Check",
+      "artist": "Test Artist",
+      "url": "https://www.youtube.com/watch?v=wydOyGNFf4I",
+      "tags": [],
+      "duration": 200.0
+    },
+    {
+      "title": "Regression Guardian",
+      "artist": "Test Artist",
+      "url": "https://www.youtube.com/watch?v=tXggyHNwO9A",
+      "tags": [],
+      "duration": 215.0
+    }
+  ]
+}

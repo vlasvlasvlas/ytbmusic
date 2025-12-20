@@ -29,21 +29,29 @@ print()
 
 # Test 2: Context Variables
 print("2️⃣ Test Variables de Metadata:")
-print("   Checkeando que existan en _get_context...")
+print("   Checkeando que existan en PlayerView.render...")
 
-with open("main.py", "r") as f:
-    source = f.read()
+def _read_source(path):
+    try:
+        return Path(path).read_text()
+    except Exception as e:
+        print(f"   ❌ No pude leer {path}: {e}")
+        return ""
+
+player_view_source = _read_source("ui/views/player_view.py")
+menu_view_source = _read_source("ui/views/menu_view.py")
+main_source = _read_source("main.py")
 
 checks = [
-    ("context['TITLE']", "TITLE variable"),
-    ("context['ARTIST']", "ARTIST variable"),
-    ("context['PLAYLIST']", "PLAYLIST variable"),
-    ("context['TRACK_NUM']", "TRACK_NUM variable"),
-    ("context['NEXT_TRACK']", "NEXT_TRACK variable"),
+    ('context["TITLE"]', "TITLE variable"),
+    ('context["ARTIST"]', "ARTIST variable"),
+    ('context["PLAYLIST"]', "PLAYLIST variable"),
+    ('context["TRACK_NUM"]', "TRACK_NUM variable"),
+    ('context["NEXT_TRACK"]', "NEXT_TRACK variable"),
 ]
 
 for check, name in checks:
-    if check in source:
+    if check in player_view_source:
         print(f"   ✅ {name} - OK")
     else:
         print(f"   ❌ {name} - MISSING")
@@ -54,15 +62,15 @@ print()
 print("3️⃣ Test Menú Principal:")
 print("   Checkeando métodos de navegación...")
 
-methods = [
-    ("def select_playlist", "Menú inicial de playlists"),
-    ("def _browse_playlists_interactive", "Playlist browser (L key)"),
-    ("def _show_track_list", "Track list (T key)"),
-    ("def render", "Render principal"),
+method_checks = [
+    (menu_view_source, "class MenuView", "Menú principal (MenuView)"),
+    (main_source, "def _prompt_import_playlist", "Import dialog (I key)"),
+    (main_source, "def _show_track_picker", "Track picker (T key)"),
+    (player_view_source, "def render(self)", "Render principal (PlayerView)"),
 ]
 
-for method, desc in methods:
-    if method in source:
+for source_text, snippet, desc in method_checks:
+    if snippet and snippet in source_text:
         print(f"   ✅ {desc} - OK")
     else:
         print(f"   ❌ {desc} - MISSING")
@@ -72,13 +80,13 @@ print()
 # Test 4: Animación en Render
 print("4️⃣ Test Lógica de Animación en render():")
 animation_checks = [
-    ("if self.is_skin_animated and self.player.is_playing():", "Check animado"),
-    ("self.current_frame_index = (self.current_frame_index + 1)", "Cambio de frame"),
-    ("self.current_skin_lines = self.current_skin_frames", "Update de líneas"),
+    ("pad_lines(c.skin_lines", "Normalización de líneas"),
+    ("c.skin_loader.render", "Render via SkinLoader"),
+    ('"STATUS":', "Estado de reproducción"),
 ]
 
 for check, desc in animation_checks:
-    if check in source:
+    if check in player_view_source:
         print(f"   ✅ {desc} - OK")
     else:
         print(f"   ❌ {desc} - MISSING")
@@ -100,13 +108,13 @@ print()
 # Test 6: Keybindings
 print("6️⃣ Test Nuevas Teclas:")
 new_keys = [
-    ("key == ord('l') or key == ord('L')", "L - Playlist browser"),
-    ("key == ord('t') or key == ord('T')", "T - Track list"),
-    ("key == ord('s') or key == ord('S')", "S - Skin selector"),
+    ("key in (\"t\", \"T\")", "T - Track picker"),
+    ("key in (\"s\", \"S\")", "S - Skin selector"),
+    ("key in (\"a\", \"A\")", "A - Animación"),
 ]
 
 for check, desc in new_keys:
-    if check in source:
+    if check in main_source:
         print(f"   ✅ {desc} - OK")
     else:
         print(f"   ❌ {desc} - MISSING")

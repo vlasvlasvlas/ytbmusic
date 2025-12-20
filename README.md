@@ -23,7 +23,9 @@
 | 🎵 **Streaming + Cache** | Reproducción inmediata. El sistema descarga en segundo plano mientras escuchas. |
 | 🔈 **Background Playback** | La música sigue sonando al volver al menú (`M`) o importar playlists. |
 | ⬇️ **Smart Download (DownloadManager)** | Una sola cola + worker con **prioridades** (Import/Play/Auto), **dedupe**, cancelación y progreso throttled (UI fluida). |
-| 📥 **Smart Import** | Importá **Playlists** o **Videos Individuales** (`I`). Detecta automáticamente **capítulos** y los separa en tracks. Pre-carga el **título** desde YouTube. Limpia URLs "Watch with Playlist". |
+| 📥 **Smart Import** | Importá **Playlists** o **Videos Individuales** (`I`) con pre-carga automática de títulos. |
+| 💿 **Chapter Splitting** | ¡Nuevo! Convierte **videos largos** (álbums) en playlists de tracks individuales detectando los **timestamps** de la descripción. |
+| 🎬 **Single Video Support** | Pegá cualquier link de YouTube (`watch?v=...`) y creará una playlist instantánea. |
 | 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
 | 🎼 **Track Picker** | En el reproductor, abrí la lista de temas con `T` y elegí qué reproducir (sin spamear Next). |
 | 🎨 **Skins ASCII** | 9+ skins retro intercambiables. [Ver guía de Skins](SKINS.md). |
@@ -31,6 +33,7 @@
 | 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
 | 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer. [Ver guía de Animaciones](ANIMATIONS.md). |
 | 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
+| 🔐 **Auto-Auth con Cookies** | Si YouTube pide verificación, el sistema detiene la cola, te guía para abrir tu navegador y actualiza las cookies automáticamente con `yt-dlp`. |
 
 ---
 
@@ -75,6 +78,29 @@ Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la i
 - Python 3.8+
 - VLC Media Player (debe coincidir con la arquitectura de tu Python, ej: 64-bit)
 - FFmpeg (opcional, para post-procesado de audio en casos raros)
+
+## 🛡️ Anti-Bot / Cookies (YouTube)
+
+YouTube endureció el rate-limit y muchas veces exige sesión iniciada incluso para reproducir playlists públicas.
+`ytbmusic` ahora intenta autenticarse automáticamente de la siguiente manera:
+
+1. Usa `cookies.txt` (ubicado en la raíz del repo) si existe.
+2. Si no hay archivo, intenta leer cookies del navegador configurado.
+   - Por defecto recorre `chrome`, `brave`, `edge`, `vivaldi`, `opera`, `chromium`, `firefox`, `safari`.
+   - Podés forzar uno con `YTBMUSIC_COOKIES_BROWSER=firefox ./run.sh`.
+
+Variables de entorno útiles:
+
+| Variable | Descripción |
+|----------|-------------|
+| `YTBMUSIC_COOKIES_FILE` | Ruta absoluta a un `cookies.txt` exportado desde tu navegador. |
+| `YTBMUSIC_COOKIES_BROWSER` | Nombre del navegador soportado por yt-dlp (`chrome`, `firefox`, etc.). |
+| `YTBMUSIC_DISABLE_COOKIES` | Define cualquier valor para desactivar el auto-config (solo si sabés lo que hacés). |
+
+Si YouTube bloquea una descarga con “Sign in to confirm you’re not a bot”, la app cancelará la cola, mostrará instrucciones sobre qué navegador abrir y, al confirmar, ejecutará automáticamente `yt-dlp --cookies-from-browser …` para generar `cookies.txt`. Sólo tenés que abrir el browser indicado, asegurarte de que YouTube esté abierto/logueado y presionar “Yes” cuando vuelvas a YTBMusic. Después de unos segundos las descargas continúan solas.
+
+Para generar `cookies.txt` seguí la guía oficial de yt-dlp: <https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp>.
+Sin cookies, YouTube puede responder “Sign in to confirm you’re not a bot” y las descargas fallarán.
 
 ---
 
@@ -159,13 +185,3 @@ YTBMusic es altamente personalizable. Podes crear tus propios diseños:
 ## 📄 Licencia
 
 MIT License. Sentite libre de usarlo y modificarlo.
-
----
-
-## 📅 Avances Recientes (Hoy)
-
-- **✅ Smart Chapter Splitting**: Al importar un video único (ej: Álbum completo en 1 video), el sistema detecta automáticamente los capítulos (timestamps) en la descripción y crea una playlist con cada canción separada. ¡Escuchá álbums completos como si fueran tracks individuales!
-- **✅ Single Video Import**: Soporte nativo para URLs de videos individuales (`youtube.com/watch?v=...`), tratándolos como una playlist de 1 track.
-- **✅ UX Upgrade - Import**: Al pegar una URL, el sistema busca automáticamente el título del video/playlist y lo pre-carga en el diálogo de nombre.
-- **✅ Fixes**: Solucionado el bug donde el diálogo de "Borrar Playlist" se cerraba instantáneamente.
-
