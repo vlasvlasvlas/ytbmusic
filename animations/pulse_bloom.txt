@@ -1,0 +1,36 @@
+---
+name: Pulse Bloom
+author: ytbmusic
+fps: 6
+width: 20
+height: 3
+---
+FRAME_1:
+         .          
+        /o\         
+       `---`        
+
+FRAME_2:
+       .   .        
+      (  o  )       
+       `-----`      
+
+FRAME_3:
+      .     .       
+     (   o   )      
+      `-------`     
+
+FRAME_4:
+       .   .        
+      (  o  )       
+       `-----`      
+
+FRAME_5:
+         .          
+        \o/         
+       _/ \_        
+
+FRAME_6:
+         .          
+        ( )         
+         o          

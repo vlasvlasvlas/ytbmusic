@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Chopin Nocturnes",
+    "description": "Imported from https://www.youtube.com/watch?v=-gDinVAmtA0",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": [
+    {
+      "title": "Chopin Nocturnes",
+      "artist": "Wonders of Classical Music",
+      "url": "https://www.youtube.com/watch?v=-gDinVAmtA0",
+      "tags": [],
+      "duration": 6655
+    }
+  ]
+}

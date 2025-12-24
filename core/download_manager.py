@@ -37,6 +37,7 @@ class DownloadTask:
     request_id: str = ""
     priority: int = 100
     created_at: float = field(default_factory=time.time)
+    attempt: int = 0
 
 
 @dataclass
@@ -51,6 +52,9 @@ class RequestStats:
 
 
 class DownloadManager:
+    MAX_RETRIES = 2
+    BASE_BACKOFF_SEC = 3.0
+
     def __init__(
         self,
         downloader: Any,
@@ -377,6 +381,41 @@ class DownloadManager:
                     }
                 )
             except Exception as e:
+                if self._should_retry(e, task.attempt):
+                    delay = self._compute_backoff(task.attempt)
+                    self._emit(
+                        {
+                            "type": "retry",
+                            "task": task,
+                            "request_id": task.request_id,
+                            "error": str(e),
+                            "attempt": task.attempt + 1,
+                            "max_attempts": self.MAX_RETRIES + 1,
+                            "delay": delay,
+                            "queue_size": self._queue_size_safe(),
+                        }
+                    )
+                    if self._stop.wait(delay):
+                        return
+                    if self._current_cancel.is_set():
+                        return
+                    retry_task = DownloadTask(
+                        url=task.url,
+                        title=task.title,
+                        artist=task.artist,
+                        playlist=task.playlist,
+                        request_id=task.request_id,
+                        priority=task.priority,
+                        attempt=task.attempt + 1,
+                    )
+                    with self._cv:
+                        heapq.heappush(
+                            self._queue, (retry_task.priority, next(self._seq), retry_task)
+                        )
+                        self._queued_urls.add(retry_task.url)
+                        self._cv.notify_all()
+                    continue
+
                 if stats:
                     stats.failed += 1
                 self._emit(
@@ -401,3 +440,28 @@ class DownloadManager:
     def _queue_size_safe(self) -> int:
         with self._lock:
             return len(self._queue)
+
+    def _should_retry(self, error: Exception, attempt: int) -> bool:
+        if attempt >= self.MAX_RETRIES:
+            return False
+        msg = str(error).lower()
+        transient_tokens = [
+            "http error 429",
+            "429",
+            "too many requests",
+            "timeout",
+            "timed out",
+            "temporarily unavailable",
+            "connection reset",
+            "network is unreachable",
+            "unreachable",
+        ]
+        return any(tok in msg for tok in transient_tokens)
+
+    def _compute_backoff(self, attempt: int) -> float:
+        """
+        Compute a gentle backoff (seconds) based on attempt number.
+
+        attempt=0 -> first retry delay.
+        """
+        return min(60.0, self.BASE_BACKOFF_SEC * (1 + attempt * 1.5))

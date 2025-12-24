@@ -37,6 +37,13 @@ class MusicPlayer:
         self._event_mgr = self._player.event_manager()
         self._event_mgr.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_end)
 
+    def get_backend_version(self) -> str:
+        """Return libVLC version string if available."""
+        try:
+            return vlc.libvlc_get_version() or ""
+        except Exception:
+            return ""
+
     def _on_end(self, event):
         logger.info("End of media reached")
         self.state = PlayerState.STOPPED
