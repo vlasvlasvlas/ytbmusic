@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any, List
 
 import urwid
 
@@ -69,7 +69,7 @@ class StatusBar(urwid.WidgetWrap):
     SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
     
     SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  Q=Quit"
-    SHORTCUTS_MENU_APP = "S=Skin  A=Anim  D=Download"
+    SHORTCUTS_MENU_APP = "S=Skin  A=Anim  D=Download  O=Settings"
 
     def __init__(self, context_text=""):
         self.top_line = urwid.Text(context_text, align="center")
@@ -140,6 +140,23 @@ class MessageLog(urwid.WidgetWrap):
         if len(self.walker) > 50:
             self.walker.pop(0)
         self.listbox.set_focus(len(self.walker) - 1)
+
+
+class ModalOverlay(urwid.WidgetWrap):
+    """Generic modal with ESC/Q close support."""
+
+    def __init__(self, title: str, body: urwid.Widget, on_close=None):
+        self._on_close = on_close
+        header = urwid.Text(("title", f" {title} "), align="center")
+        frame = urwid.Frame(body=body, header=header)
+        super().__init__(urwid.LineBox(frame))
+
+    def keypress(self, size, key):
+        if key in ("esc", "q", "Q"):
+            if self._on_close:
+                self._on_close()
+            return None
+        return super().keypress(size, key)
 
 
 
@@ -388,6 +405,14 @@ class YTBMusicUI:
         self._pending_autoplay: Optional[Dict[str, str]] = None
         self._player_overlay_active = False
         self._cookie_prompt_active = False
+        self._settings_overlay_active = False
+        self._diagnostic_overlay_active = False
+        self._precheck_done = False
+        self._precheck_result: Dict[str, str] = {}
+        self._last_download_error: str = ""
+        self._last_download_error_context: str = ""
+        self._last_cache_scan = None
+        self._settings_update_fn = None
 
         if download_manager:
             self.download_manager = download_manager
@@ -701,7 +726,7 @@ class YTBMusicUI:
         if self.playlists and self.skins:
             skin_keys_label = self._skin_keys_label()
             self.status.set(
-                f"Select playlist (1-9) or skin ({skin_keys_label}) • Q to quit"
+                f"Select playlist (1-9) or skin ({skin_keys_label}) • O Settings • Q to quit"
             )
         else:
             self.status.set("Add playlists and skins to get started")
@@ -798,6 +823,447 @@ class YTBMusicUI:
             # For now, just keep status bar lively.
             # But let's log completion:
             pass
+
+    def _format_bytes(self, num: float) -> str:
+        """Human-friendly byte formatter."""
+        try:
+            num = float(num)
+        except Exception:
+            return "0 B"
+
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if num < 1024 or unit == "TB":
+                return f"{num:.1f} {unit}" if unit != "B" else f"{int(num)} {unit}"
+            num /= 1024.0
+        return f"{num:.1f} TB"
+
+    def _run_preflight_checks(self, *, force: bool = False, silent: bool = False):
+        """Lightweight environment check (VLC + cookies + versions)."""
+        if self._precheck_done and not force:
+            return self._precheck_result
+
+        warnings = []
+        result: Dict[str, str] = {}
+
+        try:
+            vlc_version = self.player.get_backend_version()
+            result["vlc_version"] = vlc_version
+            if not vlc_version:
+                warnings.append("VLC no detectado")
+        except Exception:
+            result["vlc_version"] = ""
+            warnings.append("VLC no inicializado")
+
+        try:
+            versions = self.downloader.get_versions()
+            result["yt_dlp_version"] = versions.get("yt_dlp", "")
+            result["python_version"] = versions.get("python", "")
+        except Exception:
+            warnings.append("yt-dlp no disponible")
+
+        try:
+            cookie_status = self.downloader.get_cookie_status()
+            result["cookies"] = cookie_status
+            warning = cookie_status.get("warning")
+            if warning:
+                warnings.append(warning)
+            elif cookie_status.get("mode") in ("none", "disabled"):
+                warnings.append("Sin cookies; YouTube puede bloquear descargas")
+        except Exception:
+            warnings.append("No se pudo leer estado de cookies")
+
+        result["checked_at"] = time.time()
+        self._precheck_result = result
+        self._precheck_done = True
+
+        if not silent:
+            if warnings:
+                self.status.notify(f"Pre-check: {' | '.join(warnings)}", "error_toast")
+            else:
+                self.status.set("Entorno listo ✓")
+
+        return result
+
+    def _compute_cache_state(self) -> Dict[str, Any]:
+        """Scan cache directory and detect orphaned files."""
+        cache_dir = getattr(self.downloader, "cache_dir", Path("cache"))
+        if not isinstance(cache_dir, Path):
+            cache_dir = Path(cache_dir)
+
+        total_size = 0
+        total_files = 0
+        expected_stems = set()
+
+        for pl_name in self.playlists:
+            try:
+                pl = self.playlist_manager.load_playlist(pl_name)
+            except Exception:
+                continue
+
+            for track in getattr(pl, "tracks", []):
+                if getattr(track, "is_playable", True) is False:
+                    continue
+                try:
+                    candidates = self.downloader.cache_candidates(
+                        getattr(track, "url", ""),
+                        getattr(track, "title", None),
+                        getattr(track, "artist", None),
+                    )
+                except Exception:
+                    continue
+                for cand in candidates:
+                    expected_stems.add(Path(cand).stem)
+
+        orphans = []
+        try:
+            cache_dir.mkdir(exist_ok=True)
+            for f in cache_dir.glob("*"):
+                if not f.is_file():
+                    continue
+                total_files += 1
+                try:
+                    total_size += f.stat().st_size
+                except Exception:
+                    pass
+                if f.stem not in expected_stems:
+                    orphans.append(f)
+        except Exception as e:
+            logger.warning(f"Cache scan failed: {e}")
+
+        orphan_size = 0
+        for f in orphans:
+            try:
+                orphan_size += f.stat().st_size
+            except Exception:
+                pass
+
+        snapshot = {
+            "total_files": total_files,
+            "total_size": total_size,
+            "orphans": orphans,
+            "orphan_size": orphan_size,
+            "expected": len(expected_stems),
+            "cache_dir": str(cache_dir),
+            "timestamp": time.time(),
+        }
+        self._last_cache_scan = snapshot
+        return snapshot
+
+    def _friendly_error_message(self, err: str) -> Optional[str]:
+        """Map raw yt-dlp errors to actionable tips."""
+        if not err:
+            return None
+        err_l = err.lower()
+
+        if "429" in err_l or "too many requests" in err_l:
+            return "Rate-limit de YouTube. Reintentando con backoff; podés refrescar cookies en Settings."
+        if "sign in to confirm you're not a bot" in err_l or "confirm you're not a bot" in err_l:
+            return "YouTube pidió verificación. Refrescá cookies (Settings) y reintentá."
+        if "private" in err_l:
+            return "Video privado. Se marcará como no reproducible."
+        if "blocked" in err_l or "forbidden" in err_l:
+            return "Bloqueo de acceso (403). Podría requerir cookies o proxy."
+        return None
+
+    def _collect_diagnostics_snapshot(self) -> Dict[str, Any]:
+        precheck = self._run_preflight_checks(force=False, silent=True) or {}
+        cache_state = self._last_cache_scan or self._compute_cache_state()
+        try:
+            dl_snapshot = self.download_manager.get_snapshot()
+        except Exception:
+            dl_snapshot = {"running": False, "queue_size": 0, "current": None}
+
+        cookies = precheck.get("cookies", {}) if isinstance(precheck, dict) else {}
+        versions = {}
+        try:
+            versions = self.downloader.get_versions()
+        except Exception:
+            pass
+
+        active_task = dl_snapshot.get("current")
+        return {
+            "queue_running": dl_snapshot.get("running", False),
+            "queue_size": dl_snapshot.get("queue_size", 0),
+            "active_title": getattr(active_task, "title", "") if active_task else "",
+            "active_playlist": getattr(active_task, "playlist", "") if active_task else "",
+            "bg_status": self._get_bg_download_status(),
+            "last_error": self._last_download_error,
+            "cache": cache_state,
+            "cookies": cookies,
+            "versions": versions,
+            "vlc_version": precheck.get("vlc_version", ""),
+        }
+
+    def _build_diagnostics_body(self) -> urwid.Widget:
+        snap = self._collect_diagnostics_snapshot()
+        cache = snap.get("cache", {}) or {}
+        lines = urwid.SimpleFocusListWalker([])
+
+        lines.append(urwid.Text(("title", " Cola de descargas ")))
+        lines.append(
+            urwid.Text(
+                f"Running: {snap.get('queue_running')}  |  Queue size: {snap.get('queue_size')}"
+            )
+        )
+        if snap.get("bg_status"):
+            lines.append(urwid.Text(f"Status: {snap.get('bg_status')}"))
+        if snap.get("active_title"):
+            lines.append(
+                urwid.Text(
+                    f"Procesando: {snap.get('active_title')}"
+                    + (f" ({snap.get('active_playlist')})" if snap.get("active_playlist") else "")
+                )
+            )
+
+        lines.append(urwid.Divider("─"))
+        lines.append(urwid.Text(("title", " Cache ")))
+        cache_summary = (
+            f"Archivos: {cache.get('total_files', 0)} • Tamaño: {self._format_bytes(cache.get('total_size', 0))}"
+        )
+        lines.append(urwid.Text(cache_summary))
+        orphan_count = len(cache.get("orphans", []) or [])
+        orphan_size = self._format_bytes(cache.get("orphan_size", 0))
+        lines.append(urwid.Text(f"Huérfanos: {orphan_count} • Peso: {orphan_size}"))
+
+        lines.append(urwid.Divider("─"))
+        lines.append(urwid.Text(("title", " Dependencias ")))
+        yt_dlp_version = (snap.get("versions") or {}).get("yt_dlp", "") or "?"
+        vlc_version = snap.get("vlc_version") or "?"
+        lines.append(urwid.Text(f"yt-dlp: {yt_dlp_version}"))
+        lines.append(urwid.Text(f"VLC: {vlc_version}"))
+
+        lines.append(urwid.Divider("─"))
+        lines.append(urwid.Text(("title", " Cookies ")))
+        cookies = snap.get("cookies") or {}
+        cookie_mode = cookies.get("mode") or "none"
+        cookie_line = f"Modo: {cookie_mode}"
+        if cookies.get("path"):
+            cookie_line += f" • {cookies.get('path')}"
+            exists = cookies.get("exists")
+            if exists is False:
+                cookie_line += " (no existe)"
+        if cookies.get("browser"):
+            cookie_line += f" • Browser: {cookies.get('browser')}"
+        if cookies.get("warning"):
+            lines.append(urwid.Text(("error", cookies.get("warning"))))
+        lines.append(urwid.Text(cookie_line))
+
+        lines.append(urwid.Divider("─"))
+        lines.append(urwid.Text(("title", " Último error ")))
+        last_err = snap.get("last_error") or "N/A"
+        lines.append(urwid.Text(last_err))
+
+        lines.append(urwid.Divider())
+        lines.append(urwid.Text("↑/↓ mover • Esc/Q cerrar", align="center"))
+
+        return urwid.ListBox(lines)
+
+    def _close_modal_overlay(self):
+        self.state = UIState.MENU
+        self._settings_overlay_active = False
+        self._diagnostic_overlay_active = False
+        self._settings_update_fn = None
+        self.main_widget.original_widget = self.menu_widget
+
+    def _open_diagnostics_panel(self):
+        if not self.menu_widget:
+            return
+        body = self._build_diagnostics_body()
+        modal = ModalOverlay("Diagnóstico rápido", body, on_close=self._close_modal_overlay)
+        overlay = urwid.Overlay(
+            modal,
+            self.menu_widget,
+            align="center",
+            width=78,
+            valign="middle",
+            height=24,
+        )
+        self.state = UIState.EDIT
+        self._diagnostic_overlay_active = True
+        self.main_widget.original_widget = overlay
+
+    def _open_diagnostics_from_settings(self):
+        self._close_modal_overlay()
+        self.loop.set_alarm_in(0, lambda l, d: self._open_diagnostics_panel())
+
+    def _build_settings_list(self) -> urwid.Widget:
+        precheck = self._run_preflight_checks(force=True, silent=True) or {}
+        cache_state = self._last_cache_scan or self._compute_cache_state()
+
+        walker = urwid.SimpleFocusListWalker([])
+        walker.append(urwid.Text(("title", " Estado ")))
+
+        vlc_version = precheck.get("vlc_version") or "no detectado"
+        cookies = precheck.get("cookies") or {}
+        cookie_mode = cookies.get("mode") or "none"
+        cookie_path = cookies.get("path")
+        cookie_exists = cookies.get("exists")
+        cookie_warn = cookies.get("warning")
+        yt_dlp_version = precheck.get("yt_dlp_version") or "?"
+
+        env_line = urwid.Text(f"VLC: {vlc_version}")
+        cookie_desc = f"Cookies: {cookie_mode}"
+        if cookie_path:
+            suffix = " (ok)" if cookie_exists else " (no existe)"
+            cookie_desc += f" • {cookie_path}{suffix}"
+        elif cookies.get("browser"):
+            cookie_desc += f" • Browser: {cookies.get('browser')}"
+        if cookie_warn:
+            cookie_desc += f" • {cookie_warn}"
+        cookie_line = urwid.Text(cookie_desc)
+        ytdlp_line = urwid.Text(f"yt-dlp: {yt_dlp_version}")
+        cache_line = urwid.Text(
+            f"Cache: {cache_state.get('total_files',0)} archivos • {self._format_bytes(cache_state.get('total_size',0))}"
+        )
+        orphan_line = urwid.Text(
+            f"Huérfanos: {len(cache_state.get('orphans', []) or [])} • {self._format_bytes(cache_state.get('orphan_size',0))}"
+        )
+
+        status_line = urwid.Text("")
+
+        def set_status_line(msg: str, style: str = "info"):
+            try:
+                status_line.set_text((style, msg))
+            except Exception:
+                status_line.set_text(msg)
+
+        walker.extend([env_line, cookie_line, ytdlp_line, cache_line, orphan_line, urwid.Divider("─")])
+        walker.append(urwid.Text(("title", " Acciones ")))
+
+        # Helper to refresh status labels in-place
+        def refresh_status(button=None):
+            set_status_line("Reevaluando entorno...", "info")
+            fresh = self._run_preflight_checks(force=True, silent=True) or {}
+            fresh_cache = self._compute_cache_state()
+            env_line.set_text(f"VLC: {fresh.get('vlc_version') or 'no detectado'}")
+            cookies_f = fresh.get("cookies") or {}
+            desc = f"Cookies: {cookies_f.get('mode') or 'none'}"
+            if cookies_f.get("path"):
+                suffix = " (ok)" if cookies_f.get("exists") else " (no existe)"
+                desc += f" • {cookies_f.get('path')}{suffix}"
+            elif cookies_f.get("browser"):
+                desc += f" • Browser: {cookies_f.get('browser')}"
+            if cookies_f.get("warning"):
+                desc += f" • {cookies_f.get('warning')}"
+            cookie_line.set_text(desc)
+            ytdlp_line.set_text(f"yt-dlp: {fresh.get('yt_dlp_version') or '?'}")
+            cache_line.set_text(
+                f"Cache: {fresh_cache.get('total_files',0)} archivos • {self._format_bytes(fresh_cache.get('total_size',0))}"
+            )
+            orphan_line.set_text(
+                f"Huérfanos: {len(fresh_cache.get('orphans', []) or [])} • {self._format_bytes(fresh_cache.get('orphan_size',0))}"
+            )
+            ts = time.strftime("%H:%M:%S")
+            self.status.notify("Pre-check actualizado")
+            set_status_line(f"Pre-check actualizado {ts}", "success")
+
+        self._settings_update_fn = refresh_status
+
+        diag_btn = urwid.Button("  Ver diagnóstico")
+        urwid.connect_signal(diag_btn, "click", lambda b: self._open_diagnostics_from_settings())
+
+        cache_btn = urwid.Button("  Limpiar cache (huérfanos)")
+        urwid.connect_signal(cache_btn, "click", lambda b: self._trigger_cache_cleanup_from_settings())
+
+        cookies_btn = urwid.Button("  Refrescar cookies")
+        urwid.connect_signal(cookies_btn, "click", lambda b: self._trigger_cookie_refresh_from_settings())
+
+        refresh_btn = urwid.Button("  Re-evaluar entorno")
+        urwid.connect_signal(refresh_btn, "click", refresh_status)
+
+        walker.extend(
+            [
+                urwid.AttrMap(diag_btn, None, focus_map="highlight"),
+                urwid.AttrMap(cache_btn, None, focus_map="highlight"),
+                urwid.AttrMap(cookies_btn, None, focus_map="highlight"),
+                urwid.AttrMap(refresh_btn, None, focus_map="highlight"),
+            ]
+        )
+
+        walker.append(urwid.Divider())
+        walker.append(urwid.AttrMap(status_line, None, focus_map="highlight"))
+        walker.append(urwid.Text("↑/↓ Navegar • Enter ejecutar • Esc/Q cerrar", align="center"))
+        return urwid.ListBox(walker)
+
+    def _open_settings_modal(self):
+        if not self.menu_widget:
+            return
+        body = self._build_settings_list()
+        modal = ModalOverlay("Settings / Herramientas", body, on_close=self._close_modal_overlay)
+        overlay = urwid.Overlay(
+            modal,
+            self.menu_widget,
+            align="center",
+            width=78,
+            valign="middle",
+            height=26,
+        )
+        self.state = UIState.EDIT
+        self._settings_overlay_active = True
+        self.main_widget.original_widget = overlay
+
+    def _trigger_cache_cleanup_from_settings(self):
+        self._close_modal_overlay()
+        self.loop.set_alarm_in(0, lambda l, d: self._prompt_cache_cleanup())
+
+    def _trigger_cookie_refresh_from_settings(self):
+        self._close_modal_overlay()
+        browser_hint = os.environ.get("YTBMUSIC_COOKIES_BROWSER", "firefox")
+        self.loop.set_alarm_in(0, lambda l, d: self._start_cookie_refresh(browser_hint))
+
+    def _prompt_cache_cleanup(self):
+        scan = self._compute_cache_state()
+        orphans = scan.get("orphans", []) or []
+        if not orphans:
+            self.status.set("Cache limpia ✓ (sin huérfanos)")
+            return
+
+        size_label = self._format_bytes(scan.get("orphan_size", 0))
+        msg = f"Se encontraron {len(orphans)} archivos huérfanos (~{size_label}). ¿Borrarlos?"
+        self._show_confirm_dialog(
+            "Limpiar cache",
+            msg,
+            on_confirm=lambda: self._start_cache_cleanup(orphans),
+        )
+
+    def _start_cache_cleanup(self, orphans: List[Path]):
+        self.status.notify("Limpiando cache...", "info")
+
+        def worker():
+            removed = 0
+            freed = 0
+            for f in orphans:
+                try:
+                    sz = f.stat().st_size
+                except Exception:
+                    sz = 0
+                try:
+                    f.unlink()
+                    removed += 1
+                    freed += sz
+                except Exception:
+                    pass
+            self.loop.set_alarm_in(
+                0, lambda l, d: self._on_cache_cleanup_done(removed, freed)
+            )
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_cache_cleanup_done(self, removed: int, freed: int):
+        self._compute_cache_state()  # refresh snapshot
+        self.status.notify(
+            f"Cache limpia: {removed} archivo(s) borrados, {self._format_bytes(freed)} liberados",
+            "success_toast",
+        )
+        self.log_activity(
+            f"Cache cleanup: {removed} archivos, {self._format_bytes(freed)} liberados",
+            "info",
+        )
+        if self._settings_overlay_active and self._settings_update_fn:
+            try:
+                self._settings_update_fn()
+            except Exception:
+                pass
 
     def log_activity(self, message: str, style="info"):
         """Log to the scrolling message log."""
@@ -903,6 +1369,24 @@ class YTBMusicUI:
                 )
             return
 
+        if etype == "retry":
+            delay = float(event.get("delay", 0.0) or 0.0)
+            attempt = int(event.get("attempt", 1) or 1)
+            max_attempts = int(event.get("max_attempts", attempt + 1) or attempt + 1)
+            err = event.get("error", "") or ""
+            self._last_download_error = err
+            self._last_download_error_context = "retry"
+            task = event.get("task")
+            title = getattr(task, "title", "") if task else ""
+            rid = request_id or ""
+            msg = f"Reintento {attempt}/{max_attempts} en {delay:.0f}s"
+            if title:
+                msg += f" — {title[:40]}"
+            logger.warning(f"[DL {rid}] retry {attempt}/{max_attempts} in {delay:.1f}s: {err}")
+            self.log_activity(f"Retrying download ({attempt}/{max_attempts}) in {delay:.0f}s", "info")
+            self.status.notify(msg)
+            return
+
         if etype == "complete":
             task = event.get("task")
             rid = request_id or ""
@@ -947,6 +1431,8 @@ class YTBMusicUI:
                 )["failed"] += 1
             title = getattr(task, "title", "") if task else ""
             err = event.get("error", "")
+            self._last_download_error = err
+            self._last_download_error_context = "download"
             logger.error(f"[DL {rid}] failed: {title} - {err}")
             if title:
                 self.log_activity(f"Failed: {title}", "error")
@@ -962,6 +1448,10 @@ class YTBMusicUI:
             if any(token in err_l for token in auth_tokens):
                 self._handle_auth_challenge(err or "")
                 return
+
+            friendly = self._friendly_error_message(err or "")
+            if friendly:
+                self.status.notify(friendly, "error_toast")
 
             # Persist "unplayable" for known cases so we don't retry forever
             if task and getattr(task, "playlist", ""):
@@ -1508,7 +1998,7 @@ class YTBMusicUI:
 
         pl_name = self.playlists[self.selected_playlist_idx]
 
-        def find_deletable_cache_files() -> tuple[list[Path], int]:
+        def find_deletable_cache_files() -> tuple[List[Path], int]:
             """
             Return (files, total_bytes) for cache files that appear unused by other playlists.
             This is best-effort and intentionally conservative.
@@ -1576,7 +2066,7 @@ class YTBMusicUI:
             total_bytes = sum(candidates.values())
             return files, total_bytes
 
-        def delete_cache_files(paths: list[Path]):
+        def delete_cache_files(paths: List[Path]):
             deleted = 0
             deleted_bytes = 0
             for p in paths:
@@ -1706,6 +2196,7 @@ class YTBMusicUI:
         else:
             self.skin_lines = self._create_emergency_skin()
         self._switch_to_menu()
+        self._run_preflight_checks()
         self._start_download_event_pump()
 
         # Start auto-downloading missing tracks after 2 seconds
@@ -2219,6 +2710,8 @@ class YTBMusicUI:
                 self.loop.set_alarm_in(0, lambda l, d: self._download_selected_playlist())
             elif key in ("a", "A"):
                 self._toggle_animation()
+            elif key in ("o", "O"):
+                self._open_settings_modal()
             return
         if key == " ":
             self.player.toggle_pause()

@@ -12,7 +12,7 @@ import random
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
 
 import yt_dlp
 from core.logger import setup_logging
@@ -211,6 +211,87 @@ class YouTubeDownloader:
 
         self._set_cookie_file(cookie_path)
         return str(cookie_path)
+
+    def get_cookie_status(self) -> Dict[str, Optional[str]]:
+        """
+        Return a concise cookie configuration snapshot for UI/diagnostics.
+
+        Fields:
+            mode: disabled|file|browser|none
+            path: cookie file path (if applicable)
+            exists: bool (only for file)
+            browser: browser hint (if applicable)
+            warning: optional warning text
+        """
+        status: Dict[str, Optional[str]] = {
+            "mode": None,
+            "path": None,
+            "exists": None,
+            "browser": None,
+            "warning": None,
+        }
+
+        if os.environ.get("YTBMUSIC_DISABLE_COOKIES"):
+            status["mode"] = "disabled"
+            status["warning"] = "Cookies desactivadas (YTBMUSIC_DISABLE_COOKIES)"
+            return status
+
+        opts = self.ydl_opts_download
+        if "cookiefile" in opts:
+            path = Path(opts["cookiefile"])
+            status["mode"] = "file"
+            status["path"] = str(path)
+            status["exists"] = path.exists()
+            if not path.exists():
+                status["warning"] = "cookies.txt no encontrado"
+            return status
+
+        if "cookiesfrombrowser" in opts:
+            browser = None
+            try:
+                browser = opts["cookiesfrombrowser"][0]
+            except Exception:
+                browser = None
+            status["mode"] = "browser"
+            status["browser"] = browser
+            return status
+
+        status["mode"] = "none"
+        status["warning"] = "Sin cookies configuradas"
+        return status
+
+    def get_versions(self) -> Dict[str, str]:
+        """Expose dependency versions for diagnostics."""
+        import platform
+        try:
+            yt_dlp_version = yt_dlp.version.__version__  # type: ignore[attr-defined]
+        except Exception:
+            yt_dlp_version = getattr(yt_dlp, "__version__", "")
+        return {
+            "yt_dlp": yt_dlp_version,
+            "python": platform.python_version(),
+        }
+
+    def cache_candidates(self, url: str, title: Optional[str], artist: Optional[str]) -> List[Path]:
+        """
+        Return possible cache file paths (stem-based) for a track.
+        Helpful for cache cleaning/diagnostics.
+        """
+        candidates: List[Path] = []
+        video_id = self._extract_video_id(url)
+        stems = [video_id]
+        if title:
+            stems.append(self._make_cache_filename(title, artist))
+
+        seen = set()
+        for stem in stems:
+            if not stem or stem in seen:
+                continue
+            seen.add(stem)
+            candidates.append(self.cache_dir / f"{stem}.m4a")
+            candidates.append(self.cache_dir / f"{stem}.webm")
+
+        return candidates
 
     def check_disk_space(self, track_count: int) -> tuple:
         """

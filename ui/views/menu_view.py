@@ -14,6 +14,7 @@ class MenuListBox(urwid.ListBox):
         "a", "A", "b", "B", "c", "C",
         "e", "E", "f", "F", "g", "G", "h", "H",
         "j", "J", "k", "K", "l", "L",
+        "o", "O",
     )
 
     def keypress(self, size, key):
@@ -145,6 +146,11 @@ class MenuView:
         urwid.connect_signal(random_btn, "click", lambda b: self.controller._on_random_all())
         walker.append(urwid.AttrMap(random_btn, None, focus_map="highlight"))
 
+        # Settings button
+        settings_btn = urwid.Button("    [O] Settings / Herramientas")
+        urwid.connect_signal(settings_btn, "click", lambda b: self.controller._open_settings_modal())
+        walker.append(urwid.AttrMap(settings_btn, None, focus_map="highlight"))
+
         walker.append(urwid.Divider(" "))
         
         skin_keys_label = self._get_skin_keys_label()
@@ -183,7 +189,7 @@ class MenuView:
         walker.append(
             urwid.AttrMap(
                 urwid.Text(
-                    "  ↑/↓ Navigate  •  Enter Select  •  Q Quit", align="center"
+                    "  ↑/↓ Navigate  •  Enter Select  •  O Settings  •  Q Quit", align="center"
                 ),
                 "status",
             )

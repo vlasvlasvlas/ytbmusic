@@ -88,6 +88,8 @@ Responsabilidad:
 - Administra overlays (input dialogs, confirm dialogs, track picker).
 - **Import Flow**: Orquesta la obtención asíncrona de metadatos para pre-llenar los diálogos.
 - **ConfirmDialog**: Implementación custom (`WidgetWrap` con `keypress`) para asegurar que los eventos de teclado no se "filtren" al fondo (fix reciente).
+- **Pre-check / Settings**: Corre un chequeo rápido de entorno (VLC, cookies, versiones) al inicio y expone un modal de Settings (flechas + Enter) con acciones de mantenimiento: diagnóstico rápido, limpieza de cache huérfana y refresco manual de cookies.
+- **Panel Diagnóstico**: Overlay read-only con estado de cola, último error, cache y versiones (yt-dlp/VLC).
 
 UX/Atajos relevantes:
 - **Menu**: `I` importar, `E` rename, `X` delete, `P` play, `R` random all.
@@ -100,6 +102,7 @@ Responsabilidad:
 - Dedupe por URL (ignora fragmentos `#`) y skip de tracks ya cacheados.
 - Cancelación best-effort (incluye cancel in-progress vía `yt_dlp.utils.DownloadCancelled`).
 - Progreso throttleado (por defecto ~4 updates/seg).
+- Reintentos con backoff suave para errores transitorios (429/timeouts), emitiendo evento `retry` para la UI.
 
 Prioridades (modelo típico en UI):
 - Import / focus: prioridad más alta, puede reemplazar/cancelar lo actual.
@@ -199,6 +202,14 @@ Responsabilidad:
 
 ### F) Track Picker (`T`)
 - Abre overlay con lista, permite búsqueda y selección.
+
+### G) Settings / Diagnóstico (`O` en menú)
+- Modal navegable con flechas/Enter. Muestra estado de entorno (VLC, cookies, versiones), cache total y huérfanos. Acciones: re-evaluar entorno (con feedback), refrescar cookies, limpiar cache huérfana y abrir panel de diagnóstico.
+- Panel de diagnóstico: overlay read-only con cola de descargas, último error, cache, cookies y versiones.
+
+### H) Limpieza de cache
+- Detección de huérfanos: compara stems esperados (URL/filename normalizado) vs archivos en `cache/`. Ignora capítulos compartidos gracias a la limpieza de fragmentos `#chapter` en `_extract_video_id`.
+- Confirmación antes de borrar; ejecución en background con notificación final (archivos y bytes liberados).
 
 ## 6) Debugging rápido
 

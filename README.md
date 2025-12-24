@@ -32,10 +32,20 @@
 | 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición (Playlist/Track). |
 | 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
 | 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer. [Ver guía de Animaciones](ANIMATIONS.md). |
+| 🛠️ **Settings/Diag** | Modal navegable con pre-check de entorno, limpieza de cache, refresco de cookies y panel de diagnóstico rápido. |
 | 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
 | 🔐 **Auto-Auth con Cookies** | Si YouTube pide verificación, el sistema detiene la cola, te guía para abrir tu navegador y actualiza las cookies automáticamente con `yt-dlp`. |
 
 ---
+
+## ⚙️ Settings y Diagnóstico Rápido
+
+Abrí el modal con `O` desde el menú principal (flechas + Enter):
+- **Pre-check** de entorno (VLC, cookies, versiones de yt-dlp/Python).
+- **Refrescar cookies** desde el navegador configurado.
+- **Limpieza de cache** de archivos huérfanos (muestra cantidad y tamaño antes de borrar).
+- **Panel Diagnóstico** (solo lectura): cola de descargas, último error, tamaño de cache, estado de cookies y versiones.
+- **Backoff automático**: las descargas reintentan 429/timeouts con espera gradual (se informa en la barra de estado).
 
 ## 🚀 Instalación y Uso
 
