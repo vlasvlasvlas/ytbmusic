@@ -22,5 +22,20 @@ logs/
 *.mov
 *.flv
 *.wmv
-*.webmcookies.txt
+*.webm
 cookies.txt
+
+# Cache media (explicit, even though cache/ is ignored)
+cache/*.webm
+cache/*.mp4
+cache/*.mkv
+cache/*.avi
+cache/*.mov
+cache/*.flv
+cache/*.wmv
+cache/*.mp3
+cache/*.m4a
+cache/*.opus
+cache/*.ogg
+cache/*.wav
+cache/*.flac
