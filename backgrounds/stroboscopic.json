@@ -1,0 +1,11 @@
+{
+    "name": "Stroboscopic DANGER",
+    "mode": "gradient",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "white"
+    ],
+   "transition_sec": 0.001,
+    "fg": "white"
+}
