@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "name": "Flopa Manza Minimal 2003 Full Album HQ",
+    "description": "Imported from https://www.youtube.com/watch?v=vUc7zZjRYRM",
+    "author": "ytbmusic",
+    "tags": []
+  },
+  "settings": {
+    "shuffle": false,
+    "repeat": "playlist"
+  },
+  "tracks": [
+    {
+      "title": "01 Los Días por Llegar",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_0",
+      "tags": [],
+      "duration": 0,
+      "start_time": 0.0,
+      "end_time": 148.0
+    },
+    {
+      "title": "02 La Voz del Viento",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_1",
+      "tags": [],
+      "duration": 178.0,
+      "start_time": 148.0,
+      "end_time": 326.0
+    },
+    {
+      "title": "03 Trampas",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_2",
+      "tags": [],
+      "duration": 147.0,
+      "start_time": 326.0,
+      "end_time": 473.0
+    },
+    {
+      "title": "04 El Almaherida",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_3",
+      "tags": [],
+      "duration": 151.0,
+      "start_time": 473.0,
+      "end_time": 624.0
+    },
+    {
+      "title": "05 Cruzando el Ancho Mar",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_4",
+      "tags": [],
+      "duration": 165.0,
+      "start_time": 624.0,
+      "end_time": 789.0
+    },
+    {
+      "title": "06 Zig Zag",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_5",
+      "tags": [],
+      "duration": 170.0,
+      "start_time": 789.0,
+      "end_time": 959.0
+    },
+    {
+      "title": "07 Sonajeros",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_6",
+      "tags": [],
+      "duration": 148.0,
+      "start_time": 959.0,
+      "end_time": 1107.0
+    },
+    {
+      "title": "08 Dejadez",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_7",
+      "tags": [],
+      "duration": 172.0,
+      "start_time": 1107.0,
+      "end_time": 1279.0
+    },
+    {
+      "title": "09 Debajo del Álbum Blanco",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_8",
+      "tags": [],
+      "duration": 240.0,
+      "start_time": 1279.0,
+      "end_time": 1519.0
+    },
+    {
+      "title": "10 No Más",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_9",
+      "tags": [],
+      "duration": 347.0,
+      "start_time": 1519.0,
+      "end_time": 1866.0
+    },
+    {
+      "title": "11 Abrazo Impacto",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_10",
+      "tags": [],
+      "duration": 398.0,
+      "start_time": 1866.0,
+      "end_time": 2264.0
+    },
+    {
+      "title": "12 Bye Bye Creo Que También Ya Lo Escuché",
+      "artist": "Matias Alejandro Cabrera",
+      "url": "https://www.youtube.com/watch?v=vUc7zZjRYRM#chapter_11",
+      "tags": [],
+      "duration": 136.0,
+      "start_time": 2264.0,
+      "end_time": 2400
+    }
+  ]
+}

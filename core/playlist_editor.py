@@ -231,6 +231,11 @@ def import_playlist_from_youtube(
                 "tags": [],
                 "duration": item.get("duration", 0),
             }
+            # Add chapter timing if available (for single video → playlist conversion)
+            if "start_time" in item:
+                track_entry["start_time"] = item["start_time"]
+            if "end_time" in item:
+                track_entry["end_time"] = item["end_time"]
             data["tracks"].append(track_entry)
             added_items.append(track_entry)
             added += 1

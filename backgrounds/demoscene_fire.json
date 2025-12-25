@@ -1,0 +1,17 @@
+{
+    "name": "Demoscene Fire",
+    "mode": "gradient",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark red",
+        "light red",
+        "yellow",
+        "white",
+        "yellow",
+        "light red"
+    ],
+    "speed": 0.08,
+    "band_height": 5,
+    "fg": "black"
+}

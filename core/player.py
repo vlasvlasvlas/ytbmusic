@@ -26,12 +26,14 @@ class MusicPlayer:
     def __init__(self):
         logger.info("Initializing MusicPlayer with VLC backend")
         self.state = PlayerState.STOPPED
-        self.volume = 75
+        # Keep volume in sync with VLC from the start to avoid jumps on first keypress
+        self.volume = 100
         self.current_url = None
         self.on_end_callback = None
 
         self._instance = vlc.Instance("--no-video", "--quiet", "--intf", "dummy")
         self._player = self._instance.media_player_new()
+        self.set_volume(self.volume)
 
         # Register end-of-media event
         self._event_mgr = self._player.event_manager()

@@ -1,0 +1,7 @@
+{
+  "name": "Dusk Orange",
+  "bg": "brown",
+  "fg": "white",
+  "alt_bg": "dark red",
+  "transition_sec": 10
+}

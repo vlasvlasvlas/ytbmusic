@@ -1,0 +1,12 @@
+{
+  "name": "Sunset Cycle",
+  "bg": "brown",
+  "fg": "white",
+  "alt_bg": "dark red",
+  "transition_sec": 5,
+  "palette": [
+    { "bg": "dark red", "fg": "white" },
+    { "bg": "brown", "fg": "white" },
+    { "bg": "yellow", "fg": "black" }
+  ]
+}
