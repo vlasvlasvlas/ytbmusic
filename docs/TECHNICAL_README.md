@@ -90,6 +90,8 @@ Responsabilidad:
 - **ConfirmDialog**: Implementación custom (`WidgetWrap` con `keypress`) para asegurar que los eventos de teclado no se "filtren" al fondo (fix reciente).
 - **Pre-check / Settings**: Corre un chequeo rápido de entorno (VLC, cookies, versiones) al inicio y expone un modal de Settings (flechas + Enter) con acciones de mantenimiento: diagnóstico rápido, limpieza de cache huérfana y refresco manual de cookies.
 - **Panel Diagnóstico**: Overlay read-only con estado de cola, último error, cache y versiones (yt-dlp/VLC).
+- **Búsqueda global (`F`)**: Indexa todas las playlists (título/autor) para un buscador cross-playlist que carga la playlist y reproduce el track seleccionado.
+- **Fondos (backgrounds/)**: Presets en JSON (`bg`, `fg`, `alt_bg`, `transition_sec`, `palette` opcional) aplicados solo al canvas del player; selector modal con disclaimer; se registran como palette entries en runtime.
 
 UX/Atajos relevantes:
 - **Menu**: `I` importar, `E` rename, `X` delete, `P` play, `R` random all.
@@ -210,6 +212,13 @@ Responsabilidad:
 ### H) Limpieza de cache
 - Detección de huérfanos: compara stems esperados (URL/filename normalizado) vs archivos en `cache/`. Ignora capítulos compartidos gracias a la limpieza de fragmentos `#chapter` en `_extract_video_id`.
 - Confirmación antes de borrar; ejecución en background con notificación final (archivos y bytes liberados).
+
+### I) Búsqueda global (`F`)
+- Input dialog para texto (case-insensitive). Construye índice simple de todas las playlists (se invalida tras import/rename/delete).
+- Muestra overlay con hasta 200 resultados (playlist :: título — artista); Enter carga la playlist, mapea índice respetando shuffle y reproduce el track.
+
+### J) Fondos
+- Carpeta `backgrounds/` con presets JSON. Se cargan en arranque y se seleccionan desde un modal (con disclaimer). Solo afectan el canvas del player; footer/menú permanecen con la paleta fija. Transiciones opcionales (`transition_sec`) ciclan entre `bg`/`alt_bg`/`palette`.
 
 ## 6) Debugging rápido
 

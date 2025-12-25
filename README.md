@@ -8,7 +8,7 @@
 
 # YTBMusic
 
-**Terminal YouTube Music Player** con playlists, skins ASCII, descarga automática y buffering inteligente.
+**Terminal YouTube Music Player** con playlists, skins ASCII, descarga automática, streaming externo y buffering inteligente.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![CI](https://github.com/vlasvlasvlas/ytbmusic/actions/workflows/ci.yml/badge.svg)](https://github.com/vlasvlasvlas/ytbmusic/actions/workflows/ci.yml)
 
@@ -20,180 +20,176 @@
 
 | Feature | Descripción |
 |---------|-------------|
-| 🎵 **Streaming + Cache** | Reproducción inmediata. El sistema descarga en segundo plano mientras escuchas. |
-| 🔈 **Background Playback** | La música sigue sonando al volver al menú (`M`) o importar playlists. |
-| ⬇️ **Smart Download (DownloadManager)** | Una sola cola + worker con **prioridades** (Import/Play/Auto), **dedupe**, cancelación y progreso throttled (UI fluida). |
-| 📥 **Smart Import** | Importá **Playlists** o **Videos Individuales** (`I`) con pre-carga automática de títulos. |
-| 💿 **Chapter Splitting** | ¡Nuevo! Convierte **videos largos** (álbums) en playlists de tracks individuales detectando los **timestamps** de la descripción. |
-| 🎬 **Single Video Support** | Pegá cualquier link de YouTube (`watch?v=...`) y creará una playlist instantánea. |
-| 🛡️ **Auto-Skip** | Detecta videos eliminados/privados y los marca como `unplayable` para siempre. |
-| 🎼 **Track Picker** | En el reproductor, abrí la lista de temas con `T` y elegí qué reproducir (sin spamear Next). |
-| 🎨 **Skins ASCII** | 9+ skins retro intercambiables. [Ver guía de Skins](SKINS.md). |
-| 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición (Playlist/Track). |
-| 📜 **Activity Log** | Panel de actividad scrolleable en el footer para ver imports y descargas. |
-| 🌊 **Animaciones** | Visualizaciones ASCII dinámicas en el footer. [Ver guía de Animaciones](ANIMATIONS.md). |
-| 🛠️ **Settings/Diag** | Modal navegable con pre-check de entorno, limpieza de cache, refresco de cookies y panel de diagnóstico rápido. |
-| 💾 **Persistencia Segura** | Operaciones atómicas sobre playlists (write temp → rename) + lock para evitar JSON corrupto. |
-| 🔐 **Auto-Auth con Cookies** | Si YouTube pide verificación, el sistema detiene la cola, te guía para abrir tu navegador y actualiza las cookies automáticamente con `yt-dlp`. |
+| 🌐 **Multilenguaje** | Interfaz en Español e Inglés. Cambiá desde Settings o con `YTBMUSIC_LANG=en`. |
+| 🎧 **Streaming Externo** | Transmití a servidores Icecast/Shoutcast. Compartí el link con amigos. |
+| 🌈 **Gradientes Demoscene** | Fondos animados estilo "copper bar" con barridos de color. |
+| 💿 **Chapter Splitting** | Videos con timestamps se convierten en playlists con tracks individuales. |
+| 🎵 **Streaming + Cache** | Reproducción inmediata + descarga en segundo plano. |
+| 🔈 **Background Playback** | La música sigue al volver al menú (`M`) o importar playlists. |
+| ⬇️ **Smart Download** | Cola inteligente con prioridades, dedupe y progreso. |
+| 📥 **Smart Import** | Importá Playlists o Videos (`I`) con detección de chapters. |
+| 🎬 **Single Video** | Pegá `watch?v=...` y crea una playlist instantánea. |
+| 🛡️ **Auto-Skip** | Detecta videos eliminados/privados automáticamente. |
+| 🎼 **Track Picker** | Abrí lista de temas (`T`) y elegí qué reproducir. |
+| 🔍 **Búsqueda Global** | Busca en todas las playlists (`F`). |
+| 🖼️ **Fondos** | Sólidos, transiciones o gradientes. [Ver guía](BACKGROUNDS.md). |
+| 🎨 **Skins ASCII** | 10+ skins retro. [Ver guía](SKINS.md). |
+| 🌊 **Animaciones** | Visualizaciones dinámicas. [Ver guía](ANIMATIONS.md). |
+| 🔀 **Shuffle/Repeat** | Modos de reproducción aleatoria y repetición. |
+| 🛠️ **Settings** | Diagnóstico, streaming, cache, idioma. |
+| 🔐 **Auto-Auth** | Auto-refresco de cookies si YouTube pide verificación. |
 
 ---
 
-## ⚙️ Settings y Diagnóstico Rápido
+## 🚀 Quick Start
 
-Abrí el modal con `O` desde el menú principal (flechas + Enter):
-- **Pre-check** de entorno (VLC, cookies, versiones de yt-dlp/Python).
-- **Refrescar cookies** desde el navegador configurado.
-- **Limpieza de cache** de archivos huérfanos (muestra cantidad y tamaño antes de borrar).
-- **Panel Diagnóstico** (solo lectura): cola de descargas, último error, tamaño de cache, estado de cookies y versiones.
-- **Backoff automático**: las descargas reintentan 429/timeouts con espera gradual (se informa en la barra de estado).
+```bash
+# Clonar
+git clone https://github.com/vlasvlasvlas/ytbmusic.git
+cd ytbmusic
 
-## 🚀 Instalación y Uso
+# Instalar (crea venv + dependencias)
+./install.sh
 
-Este proyecto incluye scripts automatizados (`.sh` y `.bat`) para facilitar la instalación y configuración del entorno (venv, dependencias, librerías VLC).
+# Ejecutar
+./run.sh
 
-### macOS / Linux (Recomendado)
+# Ejecutar en inglés
+YTBMUSIC_LANG=en ./run.sh
+```
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/vlasvlasvlas/ytbmusic.git
-   cd ytbmusic
-   ```
+**Windows:** Usá `install.bat` y `run.bat`.
 
-2. **Instalar dependencias (`install.sh`):**
-   Este script creará el entorno virtual (`venv`), activará python, e instalará `yt-dlp` y verificará VLC (optimizando para Apple Silicon si es necesario).
-   ```bash
-   ./install.sh
-   ```
-
-3. **Ejecutar (`run.sh`):**
-   Este script activa el entorno virtual y configura las variables de entorno necesarias (LIBVLC) antes de lanzar la app.
-   ```bash
-   ./run.sh
-   ```
-
-### Windows
-
-1. **Instalar dependencias:**
-   Ejecuta el script batch para configurar el entorno.
-   ```cmd
-   install.bat
-   ```
-
-2. **Ejecutar:**
-   ```cmd
-   run.bat
-   ```
-
-**Requisitos Manuales:**
+**Requisitos:**
 - Python 3.8+
-- VLC Media Player (debe coincidir con la arquitectura de tu Python, ej: 64-bit)
-- FFmpeg (opcional, para post-procesado de audio en casos raros)
+- VLC Media Player
+- FFmpeg (opcional, para streaming externo)
 
-## 🛡️ Anti-Bot / Cookies (YouTube)
+---
 
-YouTube endureció el rate-limit y muchas veces exige sesión iniciada incluso para reproducir playlists públicas.
-`ytbmusic` ahora intenta autenticarse automáticamente de la siguiente manera:
+## 🌐 Idioma
 
-1. Usa `cookies.txt` (ubicado en la raíz del repo) si existe.
-2. Si no hay archivo, intenta leer cookies del navegador configurado.
-   - Por defecto recorre `chrome`, `brave`, `edge`, `vivaldi`, `opera`, `chromium`, `firefox`, `safari`.
-   - Podés forzar uno con `YTBMUSIC_COOKIES_BROWSER=firefox ./run.sh`.
+YTBMusic soporta **Español** (default) e **Inglés**.
 
-Variables de entorno útiles:
+```bash
+# Desde terminal
+YTBMUSIC_LANG=en ./run.sh
 
-| Variable | Descripción |
-|----------|-------------|
-| `YTBMUSIC_COOKIES_FILE` | Ruta absoluta a un `cookies.txt` exportado desde tu navegador. |
-| `YTBMUSIC_COOKIES_BROWSER` | Nombre del navegador soportado por yt-dlp (`chrome`, `firefox`, etc.). |
-| `YTBMUSIC_DISABLE_COOKIES` | Define cualquier valor para desactivar el auto-config (solo si sabés lo que hacés). |
-
-Si YouTube bloquea una descarga con “Sign in to confirm you’re not a bot”, la app cancelará la cola, mostrará instrucciones sobre qué navegador abrir y, al confirmar, ejecutará automáticamente `yt-dlp --cookies-from-browser …` para generar `cookies.txt`. Sólo tenés que abrir el browser indicado, asegurarte de que YouTube esté abierto/logueado y presionar “Yes” cuando vuelvas a YTBMusic. Al terminar, el auto-download global se reanuda solo y continúa bajando todo lo pendiente.
-
-Para generar `cookies.txt` seguí la guía oficial de yt-dlp: <https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp>.
-Sin cookies, YouTube puede responder “Sign in to confirm you’re not a bot” y las descargas fallarán.
+# O desde la app
+Settings (O) → 🌐 Idioma / Language (Click to toggle)
+```
 
 ---
 
 ## ⌨️ Controles
 
 ### Menú Principal
+
+Usá **selectores visuales** para playlists, skins y fondos. Navegá con flechas + Enter.
+
 | Tecla | Acción |
 |:-----:|--------|
-| `1-9` | Seleccionar playlist |
-| `P` | Reproducir playlist (Smart Resume si es la actual) |
-| `space` | Reproducir/Pausar |
-| `X` | Borrar playlist seleccionada |
-| `I` | Importar nueva playlist (URL de YouTube) |
-| `E` | Renombrar Playlist seleccionada |
-| `R` | Random All Songs (Shuffle global) |
-| `D` | Descargar pendientes de la playlist seleccionada |
-| `A` | Mostrar/Ocultar animación en el footer |
-| `B-L` | Cambiar skin rápido |
+| `I` | Importar playlist/video |
+| `F` | Buscar en todas las playlists |
+| `R` | Random All Songs |
+| `O` | Settings / Herramientas |
+| `P` | Reproducir playlist |
+| `E` | Renombrar playlist |
+| `D` | Descargar tracks pendientes |
+| `X` | Borrar playlist |
+| `A` | Toggle animación |
 | `Q` | Salir |
 
 ### Reproductor
+
 | Tecla | Acción |
 |:-----:|--------|
 | `Space` | Play/Pause |
 | `N` / `P` | Next / Previous Track |
-| `T` | Abrir lista de temas (Track Picker, `/` para buscar) |
-| `D` | Descargar todos los tracks faltantes de la playlist actual |
+| `T` | Track Picker |
 | `←` / `→` | Seek ±10s |
 | `↑` / `↓` | Volumen |
-| `S` | Cambiar Skin (rotativo) |
-| `A` | Activar/Desactivar Animación |
-| `V` | Cambiar Animación (rotativo) |
-| `Z` | Shuffle (On/Off) |
+| `S` | Cambiar Skin |
+| `B` | Cambiar Fondo |
+| `A` | Toggle Animación |
+| `V` | Cambiar Animación |
+| `Z` | Shuffle On/Off |
 | `R` | Repeat (Playlist/Track/Off) |
-| `M` | Volver al Menú Principal (Mantiene música) |
+| `M` | Volver al Menú |
 | `Q` | Salir |
 
 ---
 
-## 📁 Estructura del Proyecto
+## ⚙️ Settings
 
-```
-ytbmusic/
-├── core/          # Player/Downloader/Playlist/DownloadManager
-├── playlists/     # Archivos .json con la metadata de tus listas
-├── skins/         # Archivos de texto para los diseños ASCII
-├── animations/    # Archivos de texto para visualizaciones ASCII
-├── cache/         # Archivos de audio descargados (.m4a/webm)
-├── logs/          # Logs rotativos de la aplicación (ytbmusic.log)
-├── dist/          # Binarios compilados (si ejecutas build.py)
-├── install.sh     # Script instalación *nix
-└── run.sh         # Script ejecución *nix
-```
+Abrí con `O` desde el menú:
 
-**Nota sobre borrar playlists:** borrar una playlist elimina `playlists/<name>.json` pero **no** borra los audios ya descargados en `cache/`.
-La app puede ofrecer borrar cache “no usado” al momento de borrar una playlist.
+| Opción | Descripción |
+|--------|-------------|
+| **Diagnóstico** | Estado de VLC, cookies, yt-dlp |
+| **Streaming** | Configurar Icecast para compartir música |
+| **Limpiar Cache** | Borrar archivos huérfanos |
+| **Refrescar Cookies** | Actualizar desde navegador |
+| **🌐 Idioma** | Alternar Español / English |
 
 ---
 
-## 🏗️ Compilación (Binarios)
+## 🛡️ Cookies (Anti-Bot)
 
-Podes generar un ejecutable standalone (sin depender de tener Python instalado en la máquina destino).
+YouTube puede pedir verificación. YTBMusic intenta autenticarse:
 
-### Local
-Ejecuta el script de construcción. Generará un `.zip` en la carpeta `dist/`.
+1. Usa `cookies.txt` (raíz del repo) si existe
+2. Lee cookies del navegador configurado
+
 ```bash
-python3 build.py
+# Forzar navegador específico
+YTBMUSIC_COOKIES_BROWSER=firefox ./run.sh
 ```
 
-### GitHub Actions
-El proyecto está configurado para compilar automáticamente en la nube para **Windows**, **macOS** y **Linux** cada vez que se crea un tag (ej: `v1.0.0`). Revisá la pestaña "Releases" en GitHub.
+| Variable | Descripción |
+|----------|-------------|
+| `YTBMUSIC_COOKIES_FILE` | Ruta a `cookies.txt` |
+| `YTBMUSIC_COOKIES_BROWSER` | `chrome`, `firefox`, etc. |
+| `YTBMUSIC_LANG` | `es` o `en` |
+
+---
+
+## 📁 Estructura
+
+```
+ytbmusic/
+├── core/          # Player, Downloader, Playlist, Streaming
+├── ui/            # Interfaz (views, loaders)
+├── config/        # Configuración + i18n
+├── playlists/     # Archivos .json
+├── skins/         # Diseños ASCII
+├── animations/    # Visualizaciones
+├── backgrounds/   # Fondos JSON
+├── cache/         # Audio descargado
+├── logs/          # Logs rotativos
+└── run.sh         # Script de ejecución
+```
 
 ---
 
 ## 🎨 Personalización
- 
-YTBMusic es altamente personalizable. Podes crear tus propios diseños:
- 
-- **[Guía de Skins](SKINS.md):** Aprende a diseñar interfaces completas (carátulas).
-- **[Guía de Animaciones](ANIMATIONS.md):** Crea visualizaciones (ondas, ecualizadores) para el footer.
- 
+
+- **[Skins](SKINS.md)** - Interfaces ASCII completas
+- **[Animaciones](ANIMATIONS.md)** - Visualizaciones para el footer
+- **[Fondos](BACKGROUNDS.md)** - Colores sólidos, transiciones o gradientes
+
 ---
- 
+
+## 🏗️ Compilación
+
+```bash
+python3 build.py  # Genera ejecutable standalone
+```
+
+GitHub Actions compila para Windows, macOS y Linux en cada release.
+
+---
+
 ## 📄 Licencia
 
-MIT License. Sentite libre de usarlo y modificarlo.
+MIT License. Usalo y modificalo libremente.

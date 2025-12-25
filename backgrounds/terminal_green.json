@@ -1,0 +1,6 @@
+{
+  "name": "Terminal Green",
+  "bg": "black",
+  "fg": "light green",
+  "transition_sec": 0
+}

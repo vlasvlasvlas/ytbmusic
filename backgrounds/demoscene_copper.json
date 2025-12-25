@@ -1,0 +1,18 @@
+{
+    "name": "Demoscene Copper",
+    "mode": "gradient",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue"
+    ],
+    "speed": 0.12,
+    "band_height": 4,
+    "fg": "white"
+}

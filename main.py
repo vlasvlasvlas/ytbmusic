@@ -25,9 +25,13 @@ from core.playlist_editor import (
 
 from core.logger import setup_logging
 from ui.skin_loader import SkinLoader
+from ui.background_loader import BackgroundLoader
 from ui.animation_loader import AnimationLoader, AnimationWidget
 from ui.views.player_view import PlayerView, pad_lines
 from ui.dialogs import InputDialog, ConfirmDialog
+from ui.gradient_background import GradientRenderer
+from core.stream_broadcaster import StreamBroadcaster, check_ffmpeg_available
+from config.i18n import t
 
 logger = setup_logging()
 
@@ -35,7 +39,7 @@ logger = setup_logging()
 HELP_TEXT = "Space=⏯ N/P=⏭⏮ ←/→=Seek ↑/↓=Vol S=Skin A=Anim V=NextAnim M=Menu Q=Quit"
 PAD_WIDTH = 120
 PAD_HEIGHT = 88
-SKIN_HOTKEYS = "BCDFGHJKL"  # skip A (Animation), E (Rename), I (Import)
+SKIN_HOTKEYS = "BCDGHJKL"  # skip A (Animation), E (Rename), F (Search), I (Import)
 
 
 class UIState(Enum):
@@ -68,7 +72,7 @@ class StatusBar(urwid.WidgetWrap):
     SHORTCUTS_PLAY = "Space=⏯  N/P=⏭⏮  ←/→=Seek  ↑/↓=Vol  Z=Shuffle  R=Repeat"
     SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
     
-    SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  Q=Quit"
+    SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  F=Find  Q=Quit"
     SHORTCUTS_MENU_APP = "S=Skin  A=Anim  D=Download  O=Settings"
 
     def __init__(self, context_text=""):
@@ -140,6 +144,61 @@ class MessageLog(urwid.WidgetWrap):
         if len(self.walker) > 50:
             self.walker.pop(0)
         self.listbox.set_focus(len(self.walker) - 1)
+
+
+class ListDialog(urwid.WidgetWrap):
+    """Generic list selector dialog with optional disclaimer."""
+
+    def __init__(self, title: str, items: List[dict], on_select, on_cancel=None, disclaimer: str = None):
+        self.on_select = on_select
+        self.on_cancel = on_cancel
+
+        walker = urwid.SimpleFocusListWalker([])
+        walker.append(urwid.Text(("title", f" {title} "), align="center"))
+        walker.append(urwid.Divider("─"))
+        if disclaimer:
+            walker.append(urwid.Text(("error", disclaimer), align="center"))
+            walker.append(urwid.Divider())
+
+        first_focus = None
+        for entry in items:
+            label = entry.get("label", "")
+            value = entry.get("value", label)
+            note = entry.get("note")
+            btn = urwid.Button(label)
+            urwid.connect_signal(btn, "click", lambda b, v=value: self._do_select(v))
+            widget = urwid.AttrMap(btn, None, focus_map="highlight")
+            walker.append(widget)
+            if note:
+                walker.append(urwid.Text(("info", f"   {note}")))
+            if first_focus is None:
+                first_focus = len(walker) - 1
+
+        if first_focus is not None:
+            try:
+                walker.set_focus(first_focus)
+            except Exception:
+                pass
+
+        walker.append(urwid.Divider())
+        walker.append(
+            urwid.Text("↑/↓ Navegar • Enter seleccionar • Esc/Q cerrar", align="center")
+        )
+
+        listbox = urwid.ListBox(walker)
+        frame = urwid.Frame(body=listbox)
+        super().__init__(urwid.LineBox(frame))
+
+    def _do_select(self, value):
+        if self.on_select:
+            self.on_select(value)
+
+    def keypress(self, size, key):
+        if key in ("esc", "q", "Q"):
+            if self.on_cancel:
+                self.on_cancel()
+            return None
+        return super().keypress(size, key)
 
 
 class ModalOverlay(urwid.WidgetWrap):
@@ -338,6 +397,7 @@ class YTBMusicUI:
         self.downloader = downloader or YouTubeDownloader(cache_dir="cache")
         self.playlist_manager = playlist_manager or PlaylistManager(playlists_dir="playlists")
         self.skin_loader = skin_loader or SkinLoader()
+        self.background_loader = BackgroundLoader()
 
         # State management
         self.state = UIState.MENU
@@ -366,6 +426,24 @@ class YTBMusicUI:
         self.current_playlist_idx = 0
         self.current_playlist = None
         self.consecutive_errors = 0
+
+        # Backgrounds
+        self.backgrounds = BackgroundLoader.list_available_backgrounds()
+        self.current_background_idx = 0
+        self.current_background_meta = None
+        self._background_alarm = None
+        self._background_cycle = []
+        self._background_cycle_idx = 0
+        self._background_palette_name = "skin_bg_active"
+        
+        # Gradient animation state (demoscene mode)
+        self._gradient_renderer = None
+        self._gradient_active = False
+        self._gradient_alarm = None
+
+        # Streaming config
+        self._stream_config_path = Path("config") / "stream_config.json"
+        self._load_stream_config()
 
         # Caching
         self.playlist_cache: Dict[str, PlaylistMetadata] = {}
@@ -413,6 +491,11 @@ class YTBMusicUI:
         self._last_download_error_context: str = ""
         self._last_cache_scan = None
         self._settings_update_fn = None
+        self._track_index: list[dict] = []
+        self._track_index_dirty = True
+        self._stream_config = {}
+        self._stream_config_source = "default"
+        self._input_overlay_active = False
 
         if download_manager:
             self.download_manager = download_manager
@@ -620,6 +703,7 @@ class YTBMusicUI:
 
         def on_done(text):
             # Restore previous widget
+            self._input_overlay_active = False
             self.state = UIState.MENU
             self.main_widget.original_widget = self.menu_widget
             # Postpone callback to avoid freezing during keypress
@@ -627,6 +711,7 @@ class YTBMusicUI:
 
         # Keep menu visible underneath but freeze state so bg refresh doesn't replace overlay
         self.state = UIState.EDIT
+        self._input_overlay_active = True
         dialog = InputDialog(title, label, on_done, default_text=default_text)
         overlay = urwid.Overlay(
             dialog,
@@ -707,6 +792,8 @@ class YTBMusicUI:
                 pass
 
     def _switch_to_menu(self):
+        if getattr(self, "_input_overlay_active", False):
+            return
         self.state = UIState.MENU
         self.status.update_context("menu")
         self._player_overlay_active = False
@@ -719,6 +806,7 @@ class YTBMusicUI:
             self.loop.remove_alarm(self.spinner_alarm)
             self.spinner_alarm = None
         self.playlists = self.playlist_manager.list_playlists()
+        self._invalidate_track_index()
         self.menu_widget = self._create_menu()
         self.main_widget.original_widget = self.menu_widget
 
@@ -747,6 +835,9 @@ class YTBMusicUI:
             self.loop.remove_alarm(self.spinner_alarm)
             self.spinner_alarm = None
         self.main_widget.original_widget = self.skin_widget
+        # Reapply background palette for player canvas
+        if self.current_background_meta or self.backgrounds:
+            self._apply_background_by_idx(self.current_background_idx)
         if self.refresh_alarm:
             self.loop.remove_alarm(self.refresh_alarm)
         self.refresh_alarm = self.loop.set_alarm_in(0.2, self.refresh)
@@ -949,6 +1040,49 @@ class YTBMusicUI:
         self._last_cache_scan = snapshot
         return snapshot
 
+    def _normalize_color(self, value: Optional[str]) -> str:
+        """
+        Convert color strings to urwid-friendly names.
+        If hex (#rrggbb), degrade to basic names by luminance.
+        """
+        if not value:
+            return "white"
+        v = value.strip().lower()
+        basic_colors = {
+            "black",
+            "white",
+            "dark gray",
+            "light gray",
+            "dark red",
+            "dark green",
+            "dark blue",
+            "dark cyan",
+            "light red",
+            "light green",
+            "light blue",
+            "light cyan",
+            "yellow",
+            "brown",
+        }
+        if v in basic_colors:
+            return v
+        if v.startswith("#") and len(v) == 7:
+            try:
+                r = int(v[1:3], 16) / 255.0
+                g = int(v[3:5], 16) / 255.0
+                b = int(v[5:7], 16) / 255.0
+                lum = 0.299 * r + 0.587 * g + 0.114 * b
+                if lum < 0.2:
+                    return "black"
+                if lum < 0.4:
+                    return "dark gray"
+                if lum < 0.7:
+                    return "light gray"
+                return "white"
+            except Exception:
+                return "white"
+        return v
+
     def _friendly_error_message(self, err: str) -> Optional[str]:
         """Map raw yt-dlp errors to actionable tips."""
         if not err:
@@ -964,6 +1098,237 @@ class YTBMusicUI:
         if "blocked" in err_l or "forbidden" in err_l:
             return "Bloqueo de acceso (403). Podría requerir cookies o proxy."
         return None
+
+    def _load_stream_config(self):
+        """Load stream config from env or config file."""
+        cfg = {
+            "url": "",
+            "user": "",
+            "password": "",
+            "bitrate": 128,
+            "format": "mp3",
+        }
+        source = "default"
+
+        env_url = os.environ.get("YTBMUSIC_STREAM_URL")
+        env_user = os.environ.get("YTBMUSIC_STREAM_USER")
+        env_pass = os.environ.get("YTBMUSIC_STREAM_PASS")
+        if env_url:
+            cfg["url"] = env_url
+            source = "env"
+        if env_user:
+            cfg["user"] = env_user
+            source = "env"
+        if env_pass:
+            cfg["password"] = env_pass
+            source = "env"
+
+        try:
+            cfg_path = self._stream_config_path
+            cfg_path.parent.mkdir(parents=True, exist_ok=True)
+            if cfg_path.exists():
+                import json
+
+                with cfg_path.open("r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+                cfg.update({k: v for k, v in file_cfg.items() if v is not None})
+                source = "file"
+        except Exception as e:
+            logger.warning(f"Failed to load stream config: {e}")
+
+        self._stream_config = cfg
+        self._stream_config_source = source
+
+    def _save_stream_config(self, cfg: Dict[str, Any]):
+        """Persist stream config to config/stream_config.json."""
+        import json
+
+        try:
+            cfg_path = self._stream_config_path
+            cfg_path.parent.mkdir(parents=True, exist_ok=True)
+            with cfg_path.open("w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+            self._stream_config = cfg
+            self._stream_config_source = "file"
+            self.status.set("Stream config guardada")
+            self.log_activity("Stream config guardada", "info")
+        except Exception as e:
+            self._handle_error(e, "save_stream_config")
+
+    def _invalidate_track_index(self):
+        self._track_index_dirty = True
+
+    def _rebuild_track_index(self) -> list[dict]:
+        """Index all playable tracks across playlists for global search."""
+        index: list[dict] = []
+        for pl_name in self.playlists:
+            try:
+                pl = self.playlist_manager.load_playlist(pl_name)
+            except Exception:
+                continue
+            for idx, track in enumerate(getattr(pl, "tracks", []) or []):
+                if getattr(track, "is_playable", True) is False:
+                    continue
+                title = getattr(track, "title", "") or ""
+                artist = getattr(track, "artist", "") or ""
+                index.append(
+                    {
+                        "playlist": pl_name,
+                        "index": idx,
+                        "title": title,
+                        "artist": artist,
+                        "title_l": title.lower(),
+                        "artist_l": artist.lower(),
+                    }
+                )
+        self._track_index = index
+        self._track_index_dirty = False
+        return index
+
+    def _ensure_track_index(self) -> list[dict]:
+        if self._track_index_dirty or not self._track_index:
+            return self._rebuild_track_index()
+        return self._track_index
+
+    def _filter_track_index(self, query: str) -> list[dict]:
+        """Return matches (case-insensitive) from the global index."""
+        q = (query or "").lower().strip()
+        if not q:
+            return []
+        index = self._ensure_track_index()
+        matches = []
+        for entry in index:
+            if q in entry.get("title_l", "") or q in entry.get("artist_l", ""):
+                matches.append(entry)
+        return matches
+
+    def _map_track_index_for_shuffle(self, target_idx: int) -> int:
+        """Map absolute track idx to current shuffle position if needed."""
+        if not self.current_playlist:
+            return target_idx
+        if (
+            getattr(self.current_playlist, "shuffle_enabled", False)
+            and getattr(self.current_playlist, "_shuffle_order", None)
+        ):
+            try:
+                return self.current_playlist._shuffle_order.index(target_idx)
+            except ValueError:
+                return target_idx
+        return target_idx
+
+    def _play_search_result(self, result: dict):
+        """Load playlist and play the selected track from search results."""
+        pl_name = result.get("playlist") or ""
+        track_idx = int(result.get("index", 0) or 0)
+
+        # Close overlay if open
+        try:
+            self._close_modal_overlay()
+        except Exception:
+            pass
+
+        if not pl_name:
+            self.status.set("No playlist selected")
+            return
+
+        try:
+            self._load_playlist_by_name(pl_name)
+        except Exception as e:
+            self._handle_error(e, "search_load_playlist")
+            self._switch_to_menu()
+            return
+
+        try:
+            self.selected_playlist_idx = self.playlists.index(pl_name)
+        except Exception:
+            pass
+
+        if not self.current_playlist:
+            self.status.set("No playlist loaded")
+            return
+
+        mapped_idx = self._map_track_index_for_shuffle(track_idx)
+        self._switch_to_player()
+        title = (result.get("title") or "")[:40]
+        self.status.notify(f"▶ {title} ({pl_name})")
+
+        # Slight delay to ensure UI switches before starting playback
+        self.loop.set_alarm_in(0.05, lambda l, d: self._play_current_track(mapped_idx))
+
+    def _show_search_results(self, query: str, results: list[dict], total: int):
+        """Display search results in a modal list; Enter plays the track."""
+        header = urwid.Text(
+            ("title", f" Resultados {len(results)}/{total} para '{query}' "), align="center"
+        )
+        walker = urwid.SimpleFocusListWalker([header, urwid.Divider("─")])
+        first_focus = None
+
+        if total > len(results):
+            walker.append(
+                urwid.Text(f"Mostrando primeros {len(results)} resultados (de {total})", align="center")
+            )
+            walker.append(urwid.Divider())
+
+        for entry in results:
+            label = f"[{entry.get('playlist')}] {entry.get('title') or ''} — {entry.get('artist') or ''}"
+            btn = urwid.Button(label)
+            urwid.connect_signal(btn, "click", lambda b, e=entry: self._play_search_result(e))
+            walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
+            if first_focus is None:
+                first_focus = len(walker) - 1
+
+        walker.append(urwid.Divider())
+        walker.append(urwid.Text("↑/↓ Navegar • Enter reproducir • Esc/Q cerrar", align="center"))
+
+        if first_focus is not None:
+            try:
+                walker.set_focus(first_focus)
+            except Exception:
+                pass
+
+        listbox = urwid.ListBox(walker)
+        modal = ModalOverlay(t("modal.search_playlists"), listbox, on_close=self._close_modal_overlay)
+        overlay = urwid.Overlay(
+            modal,
+            self.menu_widget,
+            align="center",
+            width=90,
+            valign="middle",
+            height=26,
+        )
+        self.state = UIState.EDIT
+        self.main_widget.original_widget = overlay
+
+    def _perform_global_search(self, query: str):
+        q = (query or "").strip()
+        if not q:
+            self.status.set("Ingresa texto para buscar")
+            return
+        try:
+            matches = self._filter_track_index(q)
+        except Exception as e:
+            self._handle_error(e, "global_search")
+            return
+
+        if not matches:
+            self.status.set(f"Sin resultados: '{q}'")
+            return
+
+        # Limit to keep UI responsive
+        limited = matches[:200]
+        self._show_search_results(q, limited, total=len(matches))
+
+    def _prompt_global_search(self):
+        """Open input dialog to search across all playlists."""
+
+        def on_query_entered(text):
+            if text is None:
+                return
+            self._perform_global_search(text)
+
+        self._show_input_dialog(
+            t("modal.search_all"), t("modal.search_text"), on_query_entered, default_text=""
+        )
 
     def _collect_diagnostics_snapshot(self) -> Dict[str, Any]:
         precheck = self._run_preflight_checks(force=False, silent=True) or {}
@@ -1033,6 +1398,26 @@ class YTBMusicUI:
         lines.append(urwid.Text(f"VLC: {vlc_version}"))
 
         lines.append(urwid.Divider("─"))
+        lines.append(urwid.Text(("title", " 🎧 Streaming ")))
+        stream_cfg = getattr(self, "_stream_config", {}) or {}
+        stream_src = getattr(self, "_stream_config_source", "default")
+        stream_url = stream_cfg.get('url') or ''
+        
+        if stream_url:
+            lines.append(urwid.AttrMap(urwid.Text(f"✅ URL: {stream_url}"), "success"))
+            # Show shareable link
+            if "/" in stream_url:
+                base = stream_url.rsplit('/', 1)[0]
+                mount = stream_url.rsplit('/', 1)[1].split('?')[0]
+                lines.append(urwid.Text(f"🔗 Shareable: {base}/{mount}"))
+        else:
+            lines.append(urwid.Text("❌ URL: no configurado"))
+        
+        user_label = stream_cfg.get("user") or "anon"
+        lines.append(urwid.Text(f"User: {user_label} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"))
+        lines.append(urwid.Text(f"Config source: {stream_src}"))
+
+        lines.append(urwid.Divider("─"))
         lines.append(urwid.Text(("title", " Cookies ")))
         cookies = snap.get("cookies") or {}
         cookie_mode = cookies.get("mode") or "none"
@@ -1069,7 +1454,7 @@ class YTBMusicUI:
         if not self.menu_widget:
             return
         body = self._build_diagnostics_body()
-        modal = ModalOverlay("Diagnóstico rápido", body, on_close=self._close_modal_overlay)
+        modal = ModalOverlay(t("modal.diagnostics"), body, on_close=self._close_modal_overlay)
         overlay = urwid.Overlay(
             modal,
             self.menu_widget,
@@ -1159,17 +1544,122 @@ class YTBMusicUI:
 
         self._settings_update_fn = refresh_status
 
-        diag_btn = urwid.Button("  Ver diagnóstico")
+        diag_btn = urwid.Button(f"  {t('settings.diagnostics')}")
         urwid.connect_signal(diag_btn, "click", lambda b: self._open_diagnostics_from_settings())
 
-        cache_btn = urwid.Button("  Limpiar cache (huérfanos)")
+        cache_btn = urwid.Button(f"  {t('settings.cache_cleanup')}")
         urwid.connect_signal(cache_btn, "click", lambda b: self._trigger_cache_cleanup_from_settings())
 
-        cookies_btn = urwid.Button("  Refrescar cookies")
+        cookies_btn = urwid.Button(f"  {t('settings.refresh_cookies')}")
         urwid.connect_signal(cookies_btn, "click", lambda b: self._trigger_cookie_refresh_from_settings())
 
-        refresh_btn = urwid.Button("  Re-evaluar entorno")
+        refresh_btn = urwid.Button(f"  {t('settings.refresh_env')}")
         urwid.connect_signal(refresh_btn, "click", refresh_status)
+
+        # Streaming config summary
+        stream_cfg = self._stream_config or {}
+        stream_src = self._stream_config_source
+        stream_url = stream_cfg.get('url') or ''
+        
+        # Build shareable link (if configured)
+        shareable_link = ""
+        if stream_url:
+            # Parse mount point for public URL
+            if "/" in stream_url:
+                base = stream_url.rsplit('/', 1)[0]
+                mount = stream_url.rsplit('/', 1)[1].split('?')[0]  # Remove query params
+                shareable_link = f"{base}/{mount}"
+            else:
+                shareable_link = stream_url
+        
+        stream_status = "📡 No configurado" if not stream_url else f"✅ Activo: {stream_url[:40]}..."
+        stream_line = urwid.Text(stream_status)
+        
+        walker.append(urwid.Divider("─"))
+        walker.append(urwid.Text(("title", f" {t('stream.title')} ")))
+        walker.append(urwid.Text(
+            t("stream.description"),
+            align="left",
+        ))
+        walker.append(urwid.Divider(" "))
+        walker.append(urwid.Text(
+            t("stream.requirements"),
+            align="left",
+        ))
+        walker.append(urwid.Text(
+            f"   {t('stream.req_icecast')}",
+            align="left",
+        ))
+        walker.append(urwid.Text(
+            f"   {t('stream.req_ffmpeg')}",
+            align="left",
+        ))
+        walker.append(urwid.Text(
+            f"   {t('stream.req_cache')}",
+            align="left",
+        ))
+        walker.append(urwid.Divider(" "))
+        walker.append(stream_line)
+        
+        # Show shareable link prominently when configured
+        if shareable_link:
+            walker.append(urwid.Divider(" "))
+            walker.append(urwid.AttrMap(
+                urwid.Text(f"{t('stream.share_link')}: {shareable_link}"),
+                "success"
+            ))
+            walker.append(urwid.Text(
+                t("stream.share_hint"),
+                align="left"
+            ))
+        else:
+            walker.append(urwid.Divider(" "))
+            walker.append(urwid.Text(
+                t("stream.config_hint"),
+                align="left"
+            ))
+            walker.append(urwid.Text(
+                f"   {t('stream.example_url')}",
+                align="left"
+            ))
+        
+        walker.append(urwid.Divider(" "))
+        walker.append(urwid.Text(
+            f"{t('stream.current_config')}: {stream_cfg.get('user') or t('stream.no_user')} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"
+        ))
+        walker.append(urwid.Text(
+            t("stream.warning"),
+            align="left"
+        ))
+        
+        # Streaming control buttons
+        is_streaming = getattr(self, '_stream_broadcaster', None) and self._stream_broadcaster.is_streaming()
+        if is_streaming:
+            stream_ctrl_btn = urwid.Button(f"  {t('stream.stop')}")
+            urwid.connect_signal(stream_ctrl_btn, "click", lambda b: self._stop_stream())
+        else:
+            stream_ctrl_btn = urwid.Button(f"  {t('stream.start')}")
+            urwid.connect_signal(stream_ctrl_btn, "click", lambda b: self._start_stream())
+
+        stream_btn = urwid.Button(f"  {t('stream.edit')}")
+        urwid.connect_signal(stream_btn, "click", lambda b: self._edit_stream_config(stream_line))
+        
+        # Language selector
+        from config.i18n import get_language, set_language
+        current_lang = get_language()
+        lang_label = "🌐 Idioma / Language: " + ("Español" if current_lang == "es" else "English")
+        lang_btn = urwid.Button(f"  {lang_label} (Click to toggle)")
+        
+        def toggle_language(btn):
+            from config.i18n import get_language, set_language
+            new_lang = "en" if get_language() == "es" else "es"
+            set_language(new_lang)
+            # Refresh the menu to show new language
+            self._close_modal_overlay()
+            self.status.set(f"Language: {'English' if new_lang == 'en' else 'Español'}")
+            self.loop.set_alarm_in(0.1, lambda l, d: self._switch_to_menu())
+        
+        urwid.connect_signal(lang_btn, "click", toggle_language)
 
         walker.extend(
             [
@@ -1177,6 +1667,10 @@ class YTBMusicUI:
                 urwid.AttrMap(cache_btn, None, focus_map="highlight"),
                 urwid.AttrMap(cookies_btn, None, focus_map="highlight"),
                 urwid.AttrMap(refresh_btn, None, focus_map="highlight"),
+                urwid.AttrMap(stream_ctrl_btn, None, focus_map="highlight"),
+                urwid.AttrMap(stream_btn, None, focus_map="highlight"),
+                urwid.Divider(" "),
+                urwid.AttrMap(lang_btn, None, focus_map="highlight"),
             ]
         )
 
@@ -1189,7 +1683,7 @@ class YTBMusicUI:
         if not self.menu_widget:
             return
         body = self._build_settings_list()
-        modal = ModalOverlay("Settings / Herramientas", body, on_close=self._close_modal_overlay)
+        modal = ModalOverlay(t("modal.settings"), body, on_close=self._close_modal_overlay)
         overlay = urwid.Overlay(
             modal,
             self.menu_widget,
@@ -1210,6 +1704,149 @@ class YTBMusicUI:
         self._close_modal_overlay()
         browser_hint = os.environ.get("YTBMUSIC_COOKIES_BROWSER", "firefox")
         self.loop.set_alarm_in(0, lambda l, d: self._start_cookie_refresh(browser_hint))
+
+    def _edit_stream_config(self, summary_widget: Optional[urwid.Text] = None):
+        """Sequential dialogs to edit streaming config."""
+        cfg = self._stream_config or {}
+
+        def ask_format(url, user, password, bitrate):
+            def on_format(fmt):
+                if fmt is None:
+                    return
+                new_cfg = {
+                    "url": url or "",
+                    "user": user or "",
+                    "password": password or "",
+                    "bitrate": int(bitrate or 128),
+                    "format": (fmt or "mp3").lower(),
+                }
+                self._save_stream_config(new_cfg)
+                if summary_widget:
+                    summary_widget.set_text(
+                        f"Streaming: {new_cfg.get('url') or 'no configurado'} (user={new_cfg.get('user') or 'anon'}, src=file)"
+                    )
+
+            self._show_input_dialog("Streaming formato", "Formato (mp3/ogg)", on_format, default_text=cfg.get("format", "mp3"))
+
+        def ask_bitrate(url, user, password):
+            def on_bitrate(val):
+                if val is None:
+                    return
+                try:
+                    br = int(val)
+                except Exception:
+                    br = 128
+                ask_format(url, user, password, br)
+
+            self._show_input_dialog("Streaming bitrate", "Bitrate (kbps)", on_bitrate, default_text=str(cfg.get("bitrate", 128)))
+
+        def ask_password(url, user):
+            def on_password(pwd):
+                if pwd is None:
+                    return
+                ask_bitrate(url, user, pwd)
+
+            self._show_input_dialog("Streaming password", "Password", on_password, default_text=cfg.get("password", ""))
+
+        def ask_user(url):
+            def on_user(u):
+                if u is None:
+                    return
+                ask_password(url, u)
+
+            self._show_input_dialog("Streaming usuario", "Usuario", on_user, default_text=cfg.get("user", ""))
+
+        def ask_url():
+            def on_url(u):
+                if u is None:
+                    return
+                ask_user(u)
+
+            self._show_input_dialog("Streaming URL", "URL (icecast/shout/http)", on_url, default_text=cfg.get("url", ""))
+
+        ask_url()
+
+    def _start_stream(self):
+        """Start streaming current audio to configured Icecast server."""
+        # Check FFmpeg is available
+        if not check_ffmpeg_available():
+            self.status.set("❌ FFmpeg no encontrado. Instalalo para streaming.")
+            self.log_activity("FFmpeg no disponible", "error")
+            return
+        
+        # Check stream config
+        if not self._stream_config.get("url") or not self._stream_config.get("password"):
+            self.status.set("❌ Configurá URL y password primero")
+            self.log_activity("Stream no configurado", "error")
+            return
+        
+        # Check we have something to stream
+        if not getattr(self, "current_playlist", None):
+            self.status.set("❌ No hay playlist cargada")
+            return
+        
+        # Get current track's cached file
+        track = self.current_playlist.get_current_track()
+        if not track:
+            self.status.set("❌ No hay track actual")
+            return
+        
+        # Find cached file
+        video_id = self._extract_video_id(track.url)
+        if not video_id:
+            self.status.set("❌ No se puede obtener video ID")
+            return
+        
+        cache_path = None
+        for ext in [".m4a", ".webm", ".mp3", ".ogg"]:
+            test_path = Path("cache") / f"{video_id}{ext}"
+            if test_path.exists():
+                cache_path = test_path
+                break
+        
+        if not cache_path:
+            self.status.set("❌ Track no en cache. Descargalo primero (D).")
+            return
+        
+        # Initialize broadcaster
+        self._stream_broadcaster = StreamBroadcaster(self._stream_config)
+        self._stream_broadcaster._on_error = lambda msg: self.status.set(f"Stream error: {msg[:50]}")
+        self._stream_broadcaster._on_status = lambda msg: self.log_activity(msg, "info")
+        
+        # Start streaming
+        if self._stream_broadcaster.start_stream(str(cache_path)):
+            link = self._stream_broadcaster.get_shareable_link()
+            self.status.set(f"📡 Streaming: {link}")
+            self.log_activity(f"🔗 LINK: {link}", "info")
+            self._close_modal_overlay()
+        else:
+            self.status.set("❌ No se pudo iniciar el stream")
+
+    def _stop_stream(self):
+        """Stop current stream."""
+        if hasattr(self, '_stream_broadcaster') and self._stream_broadcaster:
+            self._stream_broadcaster.stop_stream()
+            self._stream_broadcaster = None
+            self.status.set("🛑 Stream detenido")
+            self.log_activity("Stream detenido", "info")
+            self._close_modal_overlay()
+        else:
+            self.status.set("No hay stream activo")
+
+    def _extract_video_id(self, url: str) -> Optional[str]:
+        """Extract YouTube video ID from URL."""
+        if not url:
+            return None
+        import re
+        patterns = [
+            r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})',
+            r'^([a-zA-Z0-9_-]{11})$'
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None
 
     def _prompt_cache_cleanup(self):
         scan = self._compute_cache_state()
@@ -1264,6 +1901,261 @@ class YTBMusicUI:
                 self._settings_update_fn()
             except Exception:
                 pass
+
+    # ---------- selection modals ----------
+    def _open_playlist_modal(self):
+        if not self.playlists:
+            self.status.set("No hay playlists para mostrar")
+            return
+
+        items = []
+        for name in self.playlists:
+            dl, total = self._count_downloaded_tracks(name)
+            items.append(
+                {
+                    "label": f"{name} ({dl}/{total} cached)",
+                    "value": name,
+                }
+            )
+
+        def on_select(name):
+            try:
+                idx = self.playlists.index(name)
+                self.selected_playlist_idx = idx
+                self._switch_to_menu()
+            except Exception:
+                self.status.set("Error al seleccionar playlist")
+
+        self._show_list_modal("Playlists", items, on_select)
+
+    def _open_skin_modal(self):
+        if not self.skins:
+            self.status.set("No hay skins disponibles")
+            return
+
+        items = []
+        for i, name in enumerate(self.skins):
+            label = name
+            if i == self.current_skin_idx:
+                label = f"{name} (actual)"
+            items.append({"label": label, "value": i})
+
+        def on_select(idx):
+            try:
+                self._load_skin(int(idx))
+                self._switch_to_menu()
+            except Exception as e:
+                self._handle_error(e, "skin_select_modal")
+                self._switch_to_menu()
+
+        self._show_list_modal("Skins", items, on_select)
+
+    def _open_background_modal(self):
+        disclaimer = (
+            "Fondos sin restricciones; revisá combinaciones antes de usar (pueden ser intensos)."
+        )
+        if not self.backgrounds:
+            self.status.set("No hay fondos en backgrounds/")
+            return
+
+        items = []
+        for i, name in enumerate(self.backgrounds):
+            try:
+                meta, _ = self.background_loader.load(name)
+                label = meta.get("name") or name
+                fg = meta.get("fg") or ""
+                bg = meta.get("bg") or ""
+                alt_bg = meta.get("alt_bg")
+                note = f"fg:{fg} bg:{bg}"
+                if alt_bg:
+                    note += f" → {alt_bg}"
+                items.append({"label": label, "value": i, "note": note})
+            except Exception:
+                items.append({"label": name, "value": i})
+
+        def on_select(idx):
+            try:
+                self._apply_background_by_idx(int(idx))
+            except Exception as e:
+                self._handle_error(e, "background_select")
+            self._switch_to_menu()
+
+        self._show_list_modal("Fondos", items, on_select, disclaimer=disclaimer)
+
+    def _show_list_modal(self, title: str, items: List[dict], on_select, disclaimer: str = None):
+        """Render a generic list modal overlay."""
+        # Keep menu visible underneath
+        self.state = UIState.EDIT
+        dialog = ListDialog(title, items, on_select, on_cancel=self._switch_to_menu, disclaimer=disclaimer)
+        overlay = urwid.Overlay(
+            dialog,
+            self.menu_widget,
+            align="center",
+            width=72,
+            valign="middle",
+            height=26,
+        )
+        self.main_widget.original_widget = overlay
+
+    # ---------- backgrounds ----------
+    def _set_player_background(self, fg: str, bg: str):
+        """Register and apply background palette for the player canvas only."""
+        fg = self._normalize_color(fg)
+        bg = self._normalize_color(bg)
+        try:
+            self.loop.screen.register_palette_entry(self._background_palette_name, fg, bg)
+            logger.info(f"[BG] Applying palette {self._background_palette_name}: fg={fg} bg={bg}")
+            self.player_view.set_background_attr(self._background_palette_name)
+            # Force immediate redraw to avoid stale colors
+            try:
+                self.player_view.force_redraw()
+            except Exception:
+                pass
+            if self.loop:
+                try:
+                    self.loop.screen.clear()
+                    self.loop.draw_screen()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed to apply background palette: {e}")
+            self.player_view.set_background_attr(None)
+
+    def _cancel_background_cycle(self):
+        if self._background_alarm and self.loop:
+            try:
+                self.loop.remove_alarm(self._background_alarm)
+            except Exception:
+                pass
+        self._background_alarm = None
+        self._background_cycle = []
+        self._background_cycle_idx = 0
+
+    def _schedule_background_cycle(self, meta: Dict[str, Any]):
+        self._cancel_background_cycle()
+        interval = float(meta.get("transition_sec") or 0)
+        fg_default = meta.get("fg") or "white"
+        colors: List[tuple[str, str]] = []
+        bg_main = meta.get("bg") or "black"
+        colors.append((fg_default, bg_main))
+
+        palette_list = meta.get("palette") or []
+        if isinstance(palette_list, list):
+            for item in palette_list:
+                if not isinstance(item, dict):
+                    continue
+                bg_val = item.get("bg")
+                fg_val = item.get("fg") or fg_default
+                if bg_val:
+                    colors.append((fg_val, bg_val))
+
+        alt_bg = meta.get("alt_bg")
+        if alt_bg:
+            colors.append((fg_default, alt_bg))
+
+        # Need at least 2 colors to cycle
+        if interval <= 0 or len(colors) < 2:
+            return
+
+        self._background_cycle = colors
+        self._background_cycle_idx = 0
+
+        def advance(loop=None, data=None):
+            if not self._background_cycle:
+                return
+            self._background_cycle_idx = (self._background_cycle_idx + 1) % len(self._background_cycle)
+            fg, bg = self._background_cycle[self._background_cycle_idx]
+            self._set_player_background(fg, bg)
+            self._background_alarm = self.loop.set_alarm_in(interval, advance)
+
+        self._background_alarm = self.loop.set_alarm_in(interval, advance)
+
+    def _apply_background_by_idx(self, idx: int):
+        """Apply background preset by index (safe if none available)."""
+        self._cancel_background_cycle()
+        self._stop_gradient_animation()  # Stop any active gradient
+        
+        if not self.backgrounds:
+            self.current_background_meta = None
+            self.player_view.set_background_attr(None)
+            return
+        idx = idx % len(self.backgrounds)
+        name = self.backgrounds[idx]
+        try:
+            meta, _ = self.background_loader.load(name)
+        except Exception as e:
+            logger.error(f"Failed to load background '{name}': {e}")
+            return
+        self.current_background_idx = idx
+        self.current_background_meta = meta
+        
+        # Check if this is a gradient background (demoscene mode)
+        if BackgroundLoader.is_gradient(meta):
+            self._start_gradient_animation(meta)
+            self.log_activity(f"🌈 Gradient: {meta.get('name') or name}", "info")
+        else:
+            # Standard solid/cycling background
+            self._set_player_background(meta.get("fg") or "white", meta.get("bg") or "black")
+            self._schedule_background_cycle(meta)
+            self.log_activity(f"Fondo: {meta.get('name') or name}", "info")
+
+    def _start_gradient_animation(self, meta: Dict[str, Any]):
+        """Start demoscene-style gradient animation."""
+        self._gradient_renderer = GradientRenderer(meta)
+        self._gradient_active = True
+        # Start animation loop
+        speed = self._gradient_renderer.get_speed()
+        self._gradient_alarm = self.loop.set_alarm_in(speed, self._gradient_animate_loop)
+        # Apply initial gradient
+        self._apply_gradient_colors()
+
+    def _stop_gradient_animation(self):
+        """Stop gradient animation if active."""
+        self._gradient_active = False
+        if hasattr(self, '_gradient_alarm') and self._gradient_alarm:
+            try:
+                self.loop.remove_alarm(self._gradient_alarm)
+            except Exception:
+                pass
+        self._gradient_alarm = None
+        self._gradient_renderer = None
+
+    def _gradient_animate_loop(self, loop=None, data=None):
+        """Animation loop for gradient backgrounds."""
+        if not self._gradient_active or not self._gradient_renderer:
+            return
+        # Advance animation frame
+        self._gradient_renderer.advance_frame()
+        self._apply_gradient_colors()
+        # Schedule next frame
+        speed = self._gradient_renderer.get_speed()
+        self._gradient_alarm = self.loop.set_alarm_in(speed, self._gradient_animate_loop)
+
+    def _apply_gradient_colors(self):
+        """Apply current gradient colors to the player view."""
+        if not self._gradient_renderer:
+            return
+        # Get colors for each line
+        colors = self._gradient_renderer.get_line_colors(PAD_HEIGHT)
+        # For now, apply the middle color as the dominant background
+        # Full per-line rendering would require a custom widget
+        mid_idx = len(colors) // 2
+        if colors:
+            fg, bg = colors[mid_idx]
+            self._set_player_background(fg, bg)
+            # Cycle through colors by shifting dominant color
+            # This creates a "sweep" effect
+
+    def _cycle_background(self, direction: int = 1):
+        """Cycle through backgrounds in player mode."""
+        if not self.backgrounds:
+            self.status.set("No hay fondos disponibles")
+            return
+        self.current_background_idx = (self.current_background_idx + direction) % len(self.backgrounds)
+        self._apply_background_by_idx(self.current_background_idx)
+        name = self.backgrounds[self.current_background_idx]
+        self.status.notify(f"Fondo: {name}")
+
 
     def log_activity(self, message: str, style="info"):
         """Log to the scrolling message log."""
@@ -1679,6 +2571,7 @@ class YTBMusicUI:
     def _on_import_complete(self, result):
         """Called when import thread finishes successfully."""
         self.playlists = list_playlists()
+        self._invalidate_track_index()
 
         if result["added"] == 0 and result["skipped"] > 0:
             self.status.set(
@@ -1945,7 +2838,7 @@ class YTBMusicUI:
 
         # Create a virtual playlist
         self.current_playlist = Playlist(
-            name="🔀 Random All",
+            name="Random All",
             description=f"All songs shuffled ({len(all_tracks)} tracks)",
             tracks=all_tracks,
             settings={"shuffle": True, "repeat": "playlist"},
@@ -2111,6 +3004,7 @@ class YTBMusicUI:
 
                 # Refresh playlists and menu
                 self.playlists = list_playlists()
+                self._invalidate_track_index()
                 self.selected_playlist_idx = None
                 self._switch_to_menu()
                 self.status.set(f"Deleted '{pl_name}' ✓")
@@ -2152,6 +3046,7 @@ class YTBMusicUI:
 
                 # Refresh list
                 self.playlists = list_playlists()
+                self._invalidate_track_index()
 
                 # Try to keep selection on renamed item
                 try:
@@ -2196,6 +3091,8 @@ class YTBMusicUI:
         else:
             self.skin_lines = self._create_emergency_skin()
         self._switch_to_menu()
+        if self.backgrounds:
+            self._apply_background_by_idx(self.current_background_idx)
         self._run_preflight_checks()
         self._start_download_event_pump()
 
@@ -2573,6 +3470,7 @@ class YTBMusicUI:
 
     def cleanup(self):
         self._stop_animation()
+        self._cancel_background_cycle()
         try:
             if self.refresh_alarm:
                 self.loop.remove_alarm(self.refresh_alarm)
@@ -2661,6 +3559,10 @@ class YTBMusicUI:
         if not isinstance(key, str):
             return
 
+        # If a search/input overlay is active, ignore global hotkeys
+        if getattr(self, "_input_overlay_active", False):
+            return
+
         # Debug logging (goes to file, not stdout)
         logger.debug(f"[KEY] state={self.state.value} key='{key}'")
 
@@ -2688,16 +3590,12 @@ class YTBMusicUI:
             if key in ("i", "I"):
                 logger.debug("[KEY] Calling _prompt_import_playlist()")
                 self._prompt_import_playlist()
-            elif key.isdigit() and "1" <= key <= "9":
-                idx = int(key) - 1
-                if idx < len(self.playlists):
-                    self._on_playlist_select(None, idx)
-            elif key.upper() in self.skin_hotkeys:
-                idx = self.skin_hotkeys.index(key.upper())
-                if idx < len(self.skins):
-                    self._on_skin_select(None, idx)
             elif key in ("p", "P"):
-                self._on_play_selected()
+                # If nothing selected but a playlist is already active, just return to player
+                if self.selected_playlist_idx is None and self.current_playlist:
+                    self._switch_to_player()
+                else:
+                    self._on_play_selected()
             elif key in ("x", "X"):
                 self._on_delete_selected()
             elif key in ("r", "R"):
@@ -2710,6 +3608,9 @@ class YTBMusicUI:
                 self.loop.set_alarm_in(0, lambda l, d: self._download_selected_playlist())
             elif key in ("a", "A"):
                 self._toggle_animation()
+            elif key in ("f", "F"):
+                # Defer to next tick to avoid overlay being clobbered by menu redraws
+                self.loop.set_alarm_in(0, lambda l, d: self._prompt_global_search())
             elif key in ("o", "O"):
                 self._open_settings_modal()
             return
@@ -2751,6 +3652,9 @@ class YTBMusicUI:
             self._toggle_animation()
         elif key in ("v", "V"):
             self._next_animation()
+        elif key in ("b", "B"):
+            # Cycle backgrounds while in player
+            self._cycle_background(direction=1)
 
 
 def main():

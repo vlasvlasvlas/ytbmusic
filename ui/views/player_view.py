@@ -33,11 +33,26 @@ class SkinWidget(urwid.WidgetWrap):
 class PlayerView:
     def __init__(self, controller: "YTBMusicUI"):
         self.controller = controller
-        self.widget = SkinWidget()
+        self.skin_widget = SkinWidget()
+        # Background fill behind the skin text
+        self.bg_fill = urwid.SolidFill(" ")
+        self.bg_attr = urwid.AttrMap(self.bg_fill, None)
+        # Wrap skin in AttrMap so we can swap palette
+        self.skin_attr = urwid.AttrMap(self.skin_widget, None)
+        # Overlay skin over the background fill to ensure full repaint
+        self.widget = urwid.Overlay(
+            self.skin_attr,
+            self.bg_attr,
+            align="left",
+            width=("relative", 100),
+            valign="top",
+            height=("relative", 100),
+        )
 
     def render(self):
         """Render the current skin with player context."""
         c = self.controller
+        width, height = self._compute_canvas_size()
         
         # Determine cached status logic (originally in _render_skin start)
         # Note: logic modified to access controller state
@@ -112,8 +127,37 @@ class PlayerView:
              self.widget.update("")
              return
 
-        lines = pad_lines(c.skin_lines, PAD_WIDTH, PAD_HEIGHT)
+        lines = pad_lines(c.skin_lines, width, height)
         rendered = c.skin_loader.render(
-            lines, context, pad_width=PAD_WIDTH, pad_height=PAD_HEIGHT
+            lines, context, pad_width=width, pad_height=height
         )
-        self.widget.update("\n".join(rendered))
+        self.skin_widget.update("\n".join(rendered))
+
+    def set_background_attr(self, attr_name: str = None):
+        """Apply an attribute name to both the skin and its background fill."""
+        try:
+            self.skin_attr.set_attr_map({None: attr_name})
+            self.bg_attr.set_attr_map({None: attr_name})
+        except Exception:
+            # Fallback: no attr map change
+            pass
+
+    def force_redraw(self):
+        """Force a redraw of the skin text to apply palette changes."""
+        try:
+            current_text = self.skin_widget.text.get_text()[0]
+            self.skin_widget.update(current_text)
+        except Exception:
+            pass
+
+    def _compute_canvas_size(self) -> (int, int):
+        """Calculate a safe canvas size based on current terminal size."""
+        width = PAD_WIDTH
+        height = PAD_HEIGHT
+        try:
+            cols, rows = self.controller.loop.screen.get_cols_rows()
+            width = max(40, min(PAD_WIDTH, cols))
+            height = max(20, min(PAD_HEIGHT, rows))
+        except Exception:
+            pass
+        return width, height

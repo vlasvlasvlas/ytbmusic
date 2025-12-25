@@ -1,0 +1,12 @@
+{
+  "name": "Ocean Cycle",
+  "bg": "dark blue",
+  "fg": "white",
+  "alt_bg": "dark cyan",
+  "transition_sec": 6,
+  "palette": [
+    { "bg": "dark blue", "fg": "white" },
+    { "bg": "dark cyan", "fg": "white" },
+    { "bg": "light blue", "fg": "black" }
+  ]
+}

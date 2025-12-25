@@ -1,0 +1,7 @@
+{
+  "name": "Soft Blue",
+  "bg": "dark blue",
+  "fg": "white",
+  "alt_bg": "dark cyan",
+  "transition_sec": 8
+}
