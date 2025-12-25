@@ -1,6 +1,7 @@
 {
     "name": "Demoscene Copper",
     "mode": "gradient",
+    "pattern": "wave_sine",
     "direction": "vertical",
     "colors": [
         "black",
@@ -12,7 +13,13 @@
         "dark cyan",
         "dark blue"
     ],
-    "speed": 0.12,
-    "band_height": 4,
+    "speed": 0.10,
+    "step_size": 0.7,
+    "band_height": 3,
+    "wave_amplitude": 1.8,
+    "wave_frequency": 0.8,
+    "phase_shift": 0.04,
+    "color_spread": 1.2,
+    "smoothness": 2,
     "fg": "white"
 }

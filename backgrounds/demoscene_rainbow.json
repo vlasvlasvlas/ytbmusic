@@ -1,0 +1,25 @@
+{
+    "name": "Demoscene Rainbow",
+    "mode": "gradient",
+    "pattern": "wave_sine",
+    "direction": "vertical",
+    "colors": [
+        "dark red",
+        "light red",
+        "yellow",
+        "light green",
+        "dark cyan",
+        "light blue",
+        "dark blue",
+        "dark magenta",
+        "light magenta"
+    ],
+    "speed": 0.10,
+    "step_size": 0.6,
+    "wave_amplitude": 1.5,
+    "wave_frequency": 0.7,
+    "phase_shift": 0.03,
+    "color_spread": 1.8,
+    "smoothness": 2,
+    "fg": "white"
+}

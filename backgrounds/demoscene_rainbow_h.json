@@ -1,0 +1,24 @@
+{
+    "name": "Demoscene Rainbow H",
+    "mode": "gradient",
+    "pattern": "wave_sine",
+    "direction": "horizontal",
+    "colors": [
+        "dark red",
+        "light red",
+        "yellow",
+        "light green",
+        "dark cyan",
+        "light blue",
+        "dark blue",
+        "dark magenta"
+    ],
+    "speed": 0.07,
+    "step_size": 0.8,
+    "wave_amplitude": 1.2,
+    "wave_frequency": 0.8,
+    "phase_shift": 0.02,
+    "color_spread": 1.5,
+    "smoothness": 2,
+    "fg": "white"
+}

@@ -1,0 +1,23 @@
+{
+    "name": "Demoscene Matrix",
+    "mode": "gradient",
+    "pattern": "wave_sawtooth",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark green",
+        "light green",
+        "white",
+        "light green",
+        "dark green",
+        "black"
+    ],
+    "speed": 0.05,
+    "step_size": 2.0,
+    "wave_amplitude": 1.0,
+    "wave_frequency": 2.0,
+    "phase_shift": 0.12,
+    "color_spread": 1.0,
+    "smoothness": 1,
+    "fg": "light green"
+}
