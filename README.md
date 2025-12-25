@@ -134,6 +134,45 @@ Abrí con `O` desde el menú:
 
 ---
 
+## 🎧 Streaming Externo (Icecast)
+
+Transmití tu música para que amigos escuchen en tiempo real.
+
+### Requisitos
+1. **Servidor Icecast** corriendo (local o remoto)
+2. **FFmpeg** instalado (`brew install ffmpeg` / `apt install ffmpeg`)
+3. Track descargado en cache (no streaming directo de YouTube)
+
+### Configuración
+1. Abrí Settings (`O`) → **Editar Streaming**
+2. Configurá:
+   - **URL**: `http://tu-servidor:8000/stream`
+   - **Usuario**: `source` (default Icecast)
+   - **Password**: tu password de Icecast
+   - **Bitrate**: 128 kbps (recomendado)
+3. Clic en **▶️ INICIAR STREAM**
+
+### Compartir
+Una vez activo, aparece el **link para compartir**:
+```
+http://tu-servidor:8000/stream
+```
+Otros pueden abrirlo en VLC, navegador, o cualquier reproductor.
+
+---
+
+## 💿 Chapter Splitting
+
+Al importar un video largo con timestamps en la descripción (ej: álbum completo), YTBMusic detecta los chapters automáticamente y crea un track por cada uno.
+
+```
+01. Track One - 00:00
+02. Track Two - 03:45
+03. Track Three - 07:20
+```
+
+Cada track salta a su posición correcta al reproducir. El audio se descarga una sola vez.
+
 ## 🛡️ Cookies (Anti-Bot)
 
 YouTube puede pedir verificación. YTBMusic intenta autenticarse:
