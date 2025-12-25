@@ -14,3 +14,12 @@ env/
 cache/
 logs/
 *.log
+
+#media
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.flv
+*.wmv
+*.webm
