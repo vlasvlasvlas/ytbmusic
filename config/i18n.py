@@ -42,7 +42,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "menu.background": "Fondo",
         "menu.select_background": "Seleccionar Fondo",
         "menu.quick_actions": "Acciones rápidas:",
-        
         # Player
         "player.playing": "Reproduciendo",
         "player.paused": "Pausado",
@@ -51,7 +50,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "player.buffering": "Buffering...",
         "player.track": "Track",
         "player.of": "de",
-        
         # Settings
         "settings.title": "Configuración / Herramientas",
         "settings.diagnostics": "Diagnóstico del Sistema",
@@ -60,7 +58,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "settings.refresh_playlists": "Refrescar Playlists",
         "settings.refresh_env": "Re-evaluar entorno",
         "settings.close": "Cerrar",
-        
         # Streaming
         "stream.title": "🎧 Streaming a Servidor Externo",
         "stream.description": "Transmití tu música para que otros la escuchen en tiempo real.",
@@ -88,7 +85,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "stream.started": "📡 Streaming",
         "stream.stopped": "🛑 Stream detenido",
         "stream.no_active": "No hay stream activo",
-        
         # Dialogs
         "dialog.confirm": "Confirmar",
         "dialog.cancel": "Cancelar",
@@ -98,38 +94,32 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "dialog.error": "Error",
         "dialog.success": "Éxito",
         "dialog.close_hint": "Enter: confirmar  •  Esc: cancelar",
-        
         # Import
         "import.title": "Importar Playlist",
         "import.url_prompt": "URL de YouTube (playlist o video)",
         "import.processing": "Procesando...",
         "import.success": "Playlist importada",
         "import.error": "Error al importar",
-        
         # Search
         "search.title": "Buscar en Playlists",
         "search.prompt": "Buscar:",
         "search.no_results": "Sin resultados",
         "search.hint": "Enter: buscar  •  Esc: cerrar",
-        
         # Download
         "download.starting": "Iniciando descarga...",
         "download.complete": "Descarga completada",
         "download.error": "Error de descarga",
         "download.queued": "En cola",
         "download.progress": "Descargando",
-        
         # Cache
         "cache.clean": "Cache limpia ✓ (sin huérfanos)",
         "cache.orphans_found": "Se encontraron archivos huérfanos",
         "cache.delete_confirm": "¿Borrarlos?",
         "cache.deleted": "Cache limpiada",
-        
         # Errors
         "error.generic": "Ocurrió un error",
         "error.network": "Error de red",
         "error.file_not_found": "Archivo no encontrado",
-        
         # Status
         "status.ready": "Listo",
         "status.loading": "Cargando...",
@@ -142,7 +132,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "status.error_select_playlist": "Error al seleccionar playlist",
         "status.error_unknown": "Error desconocido",
         "status.error_refresh_cookies": "Error al refrescar cookies",
-        
         # Modals
         "modal.search_playlists": "Buscar en playlists",
         "modal.diagnostics": "Diagnóstico rápido",
@@ -156,7 +145,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "modal.new_name": "Nuevo Nombre",
         "modal.search_text": "Texto",
         "modal.search_all": "Buscar en todas las playlists",
-        
         # Streaming dialogs
         "stream.dialog.url": "Streaming URL",
         "stream.dialog.url_hint": "URL (icecast/shout/http)",
@@ -165,7 +153,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "stream.dialog.bitrate": "Bitrate (kbps)",
         "stream.dialog.format": "Formato (mp3/ogg)",
     },
-    
     # =========================================================================
     # ENGLISH
     # =========================================================================
@@ -196,7 +183,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "menu.background": "Background",
         "menu.select_background": "Select Background",
         "menu.quick_actions": "Quick actions:",
-        
         # Player
         "player.playing": "Playing",
         "player.paused": "Paused",
@@ -205,7 +191,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "player.buffering": "Buffering...",
         "player.track": "Track",
         "player.of": "of",
-        
         # Settings
         "settings.title": "Settings / Tools",
         "settings.diagnostics": "System Diagnostics",
@@ -214,7 +199,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "settings.refresh_playlists": "Refresh Playlists",
         "settings.refresh_env": "Re-evaluate environment",
         "settings.close": "Close",
-        
         # Streaming
         "stream.title": "🎧 Streaming to External Server",
         "stream.description": "Stream your music so others can listen in real-time.",
@@ -242,7 +226,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "stream.started": "📡 Streaming",
         "stream.stopped": "🛑 Stream stopped",
         "stream.no_active": "No active stream",
-        
         # Dialogs
         "dialog.confirm": "Confirm",
         "dialog.cancel": "Cancel",
@@ -252,38 +235,32 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "dialog.error": "Error",
         "dialog.success": "Success",
         "dialog.close_hint": "Enter: confirm  •  Esc: cancel",
-        
         # Import
         "import.title": "Import Playlist",
         "import.url_prompt": "YouTube URL (playlist or video)",
         "import.processing": "Processing...",
         "import.success": "Playlist imported",
         "import.error": "Import error",
-        
         # Search
         "search.title": "Search Playlists",
         "search.prompt": "Search:",
         "search.no_results": "No results",
         "search.hint": "Enter: search  •  Esc: close",
-        
         # Download
         "download.starting": "Starting download...",
         "download.complete": "Download complete",
         "download.error": "Download error",
         "download.queued": "Queued",
         "download.progress": "Downloading",
-        
         # Cache
         "cache.clean": "Cache clean ✓ (no orphans)",
         "cache.orphans_found": "Orphan files found",
         "cache.delete_confirm": "Delete them?",
         "cache.deleted": "Cache cleaned",
-        
         # Errors
         "error.generic": "An error occurred",
         "error.network": "Network error",
         "error.file_not_found": "File not found",
-        
         # Status
         "status.ready": "Ready",
         "status.loading": "Loading...",
@@ -296,7 +273,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "status.error_select_playlist": "Error selecting playlist",
         "status.error_unknown": "Unknown error",
         "status.error_refresh_cookies": "Error refreshing cookies",
-        
         # Modals
         "modal.search_playlists": "Search playlists",
         "modal.diagnostics": "Quick Diagnostics",
@@ -310,7 +286,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "modal.new_name": "New Name",
         "modal.search_text": "Text",
         "modal.search_all": "Search all playlists",
-        
         # Streaming dialogs
         "stream.dialog.url": "Streaming URL",
         "stream.dialog.url_hint": "URL (icecast/shout/http)",
@@ -325,27 +300,27 @@ STRINGS: Dict[str, Dict[str, str]] = {
 def t(key: str, **kwargs) -> str:
     """
     Translate a string key to the current language.
-    
+
     Args:
         key: The translation key (e.g., "menu.import")
         **kwargs: Optional format arguments
-        
+
     Returns:
         Translated string, or the key itself if not found
-        
+
     Example:
         t("menu.import")  # Returns "Importar de YouTube" in Spanish
         t("download.progress", file="song.mp3")  # With formatting
     """
     lang_strings = STRINGS.get(LANG, STRINGS.get("es", {}))
     text = lang_strings.get(key, key)
-    
+
     if kwargs:
         try:
             text = text.format(**kwargs)
         except (KeyError, ValueError):
             pass
-    
+
     return text
 
 

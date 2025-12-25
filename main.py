@@ -64,22 +64,22 @@ class SkinMetadata:
     loaded_at: float
 
 
-
-
 class StatusBar(urwid.WidgetWrap):
     """Three-line status bar: Info (Top) + Playback Shortcuts (Mid) + App Shortcuts (Bot)."""
 
     SHORTCUTS_PLAY = "Space=⏯  N/P=⏭⏮  ←/→=Seek  ↑/↓=Vol  Z=Shuffle  R=Repeat"
     SHORTCUTS_APP = "T=Tracks  S=Skin  A=Anim  V=NextAnim  M=Menu  Q=Quit"
-    
-    SHORTCUTS_MENU = "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  F=Find  Q=Quit"
+
+    SHORTCUTS_MENU = (
+        "1-9=Select  I=Import  X=Delete  E=Rename  R=RandomAll  F=Find  Q=Quit"
+    )
     SHORTCUTS_MENU_APP = "S=Skin  A=Anim  D=Download  O=Settings"
 
     def __init__(self, context_text=""):
         self.top_line = urwid.Text(context_text, align="center")
         self.mid_line = urwid.Text(self.SHORTCUTS_PLAY, align="center")
         self.bot_line = urwid.Text(self.SHORTCUTS_APP, align="center")
-        
+
         # Keep references to AttrWrappers to change styles dynamically
         self.top_attr = urwid.AttrWrap(self.top_line, "status")
         self.mid_attr = urwid.AttrWrap(self.mid_line, "status")
@@ -95,7 +95,7 @@ class StatusBar(urwid.WidgetWrap):
             ]
         )
         super().__init__(self.pile)
-        
+
     def update_context(self, context: str):
         """Update shortcuts based on context (menu/player)."""
         if context == "menu":
@@ -149,7 +149,14 @@ class MessageLog(urwid.WidgetWrap):
 class ListDialog(urwid.WidgetWrap):
     """Generic list selector dialog with optional disclaimer."""
 
-    def __init__(self, title: str, items: List[dict], on_select, on_cancel=None, disclaimer: str = None):
+    def __init__(
+        self,
+        title: str,
+        items: List[dict],
+        on_select,
+        on_cancel=None,
+        disclaimer: str = None,
+    ):
         self.on_select = on_select
         self.on_cancel = on_cancel
 
@@ -216,15 +223,6 @@ class ModalOverlay(urwid.WidgetWrap):
                 self._on_close()
             return None
         return super().keypress(size, key)
-
-
-
-
-
-
-
-
-
 
 
 class TrackPickerDialog(urwid.WidgetWrap):
@@ -395,7 +393,9 @@ class YTBMusicUI:
         self.player = player or MusicPlayer()
         self.player.on_end_callback = self._on_track_end_callback
         self.downloader = downloader or YouTubeDownloader(cache_dir="cache")
-        self.playlist_manager = playlist_manager or PlaylistManager(playlists_dir="playlists")
+        self.playlist_manager = playlist_manager or PlaylistManager(
+            playlists_dir="playlists"
+        )
         self.skin_loader = skin_loader or SkinLoader()
         self.background_loader = BackgroundLoader()
 
@@ -435,7 +435,7 @@ class YTBMusicUI:
         self._background_cycle = []
         self._background_cycle_idx = 0
         self._background_palette_name = "skin_bg_active"
-        
+
         # Gradient animation state (demoscene mode)
         self._gradient_renderer = None
         self._gradient_active = False
@@ -475,7 +475,9 @@ class YTBMusicUI:
 
         # Download manager (single worker, priority queue)
         # Download manager (single worker, priority queue)
-        self._download_events: "queue.Queue[dict]" = download_events_queue or queue.Queue()
+        self._download_events: "queue.Queue[dict]" = (
+            download_events_queue or queue.Queue()
+        )
         self._download_event_alarm = None
         self._download_request_summary: Dict[str, Dict[str, int]] = {}
         self._active_download_request_id: Optional[str] = None
@@ -639,10 +641,8 @@ class YTBMusicUI:
     # ---------- UI builders ----------
     def _create_menu(self):
         from ui.views.menu_view import MenuView
+
         return MenuView(self).create()
-
-
-
 
     def _create_loading_widget(self, message: str):
         frames = ["◐", "◓", "◑", "◒"]  # Spinning circle
@@ -725,10 +725,10 @@ class YTBMusicUI:
 
     def _show_confirm_dialog(self, title, message, on_confirm, on_cancel=None):
         """Show a modal yes/no confirmation dialog."""
-        
+
         # Save previous widget to restore later
         previous_widget = self.main_widget.original_widget
-        
+
         def cleanup():
             self.state = UIState.MENU
             self.main_widget.original_widget = self.menu_widget
@@ -745,9 +745,9 @@ class YTBMusicUI:
 
         # Set state to EDIT to block global hotkeys in main loop
         self.state = UIState.EDIT
-        
+
         dialog = ConfirmDialog(title, message, wrapped_confirm, wrapped_cancel)
-        
+
         overlay = urwid.Overlay(
             dialog,
             self.menu_widget,
@@ -1091,8 +1091,13 @@ class YTBMusicUI:
 
         if "429" in err_l or "too many requests" in err_l:
             return "Rate-limit de YouTube. Reintentando con backoff; podés refrescar cookies en Settings."
-        if "sign in to confirm you're not a bot" in err_l or "confirm you're not a bot" in err_l:
-            return "YouTube pidió verificación. Refrescá cookies (Settings) y reintentá."
+        if (
+            "sign in to confirm you're not a bot" in err_l
+            or "confirm you're not a bot" in err_l
+        ):
+            return (
+                "YouTube pidió verificación. Refrescá cookies (Settings) y reintentá."
+            )
         if "private" in err_l:
             return "Video privado. Se marcará como no reproducible."
         if "blocked" in err_l or "forbidden" in err_l:
@@ -1206,9 +1211,8 @@ class YTBMusicUI:
         """Map absolute track idx to current shuffle position if needed."""
         if not self.current_playlist:
             return target_idx
-        if (
-            getattr(self.current_playlist, "shuffle_enabled", False)
-            and getattr(self.current_playlist, "_shuffle_order", None)
+        if getattr(self.current_playlist, "shuffle_enabled", False) and getattr(
+            self.current_playlist, "_shuffle_order", None
         ):
             try:
                 return self.current_playlist._shuffle_order.index(target_idx)
@@ -1258,27 +1262,35 @@ class YTBMusicUI:
     def _show_search_results(self, query: str, results: list[dict], total: int):
         """Display search results in a modal list; Enter plays the track."""
         header = urwid.Text(
-            ("title", f" Resultados {len(results)}/{total} para '{query}' "), align="center"
+            ("title", f" Resultados {len(results)}/{total} para '{query}' "),
+            align="center",
         )
         walker = urwid.SimpleFocusListWalker([header, urwid.Divider("─")])
         first_focus = None
 
         if total > len(results):
             walker.append(
-                urwid.Text(f"Mostrando primeros {len(results)} resultados (de {total})", align="center")
+                urwid.Text(
+                    f"Mostrando primeros {len(results)} resultados (de {total})",
+                    align="center",
+                )
             )
             walker.append(urwid.Divider())
 
         for entry in results:
             label = f"[{entry.get('playlist')}] {entry.get('title') or ''} — {entry.get('artist') or ''}"
             btn = urwid.Button(label)
-            urwid.connect_signal(btn, "click", lambda b, e=entry: self._play_search_result(e))
+            urwid.connect_signal(
+                btn, "click", lambda b, e=entry: self._play_search_result(e)
+            )
             walker.append(urwid.AttrMap(btn, None, focus_map="highlight"))
             if first_focus is None:
                 first_focus = len(walker) - 1
 
         walker.append(urwid.Divider())
-        walker.append(urwid.Text("↑/↓ Navegar • Enter reproducir • Esc/Q cerrar", align="center"))
+        walker.append(
+            urwid.Text("↑/↓ Navegar • Enter reproducir • Esc/Q cerrar", align="center")
+        )
 
         if first_focus is not None:
             try:
@@ -1287,7 +1299,9 @@ class YTBMusicUI:
                 pass
 
         listbox = urwid.ListBox(walker)
-        modal = ModalOverlay(t("modal.search_playlists"), listbox, on_close=self._close_modal_overlay)
+        modal = ModalOverlay(
+            t("modal.search_playlists"), listbox, on_close=self._close_modal_overlay
+        )
         overlay = urwid.Overlay(
             modal,
             self.menu_widget,
@@ -1327,7 +1341,10 @@ class YTBMusicUI:
             self._perform_global_search(text)
 
         self._show_input_dialog(
-            t("modal.search_all"), t("modal.search_text"), on_query_entered, default_text=""
+            t("modal.search_all"),
+            t("modal.search_text"),
+            on_query_entered,
+            default_text="",
         )
 
     def _collect_diagnostics_snapshot(self) -> Dict[str, Any]:
@@ -1350,7 +1367,9 @@ class YTBMusicUI:
             "queue_running": dl_snapshot.get("running", False),
             "queue_size": dl_snapshot.get("queue_size", 0),
             "active_title": getattr(active_task, "title", "") if active_task else "",
-            "active_playlist": getattr(active_task, "playlist", "") if active_task else "",
+            "active_playlist": (
+                getattr(active_task, "playlist", "") if active_task else ""
+            ),
             "bg_status": self._get_bg_download_status(),
             "last_error": self._last_download_error,
             "cache": cache_state,
@@ -1376,15 +1395,17 @@ class YTBMusicUI:
             lines.append(
                 urwid.Text(
                     f"Procesando: {snap.get('active_title')}"
-                    + (f" ({snap.get('active_playlist')})" if snap.get("active_playlist") else "")
+                    + (
+                        f" ({snap.get('active_playlist')})"
+                        if snap.get("active_playlist")
+                        else ""
+                    )
                 )
             )
 
         lines.append(urwid.Divider("─"))
         lines.append(urwid.Text(("title", " Cache ")))
-        cache_summary = (
-            f"Archivos: {cache.get('total_files', 0)} • Tamaño: {self._format_bytes(cache.get('total_size', 0))}"
-        )
+        cache_summary = f"Archivos: {cache.get('total_files', 0)} • Tamaño: {self._format_bytes(cache.get('total_size', 0))}"
         lines.append(urwid.Text(cache_summary))
         orphan_count = len(cache.get("orphans", []) or [])
         orphan_size = self._format_bytes(cache.get("orphan_size", 0))
@@ -1401,20 +1422,24 @@ class YTBMusicUI:
         lines.append(urwid.Text(("title", " 🎧 Streaming ")))
         stream_cfg = getattr(self, "_stream_config", {}) or {}
         stream_src = getattr(self, "_stream_config_source", "default")
-        stream_url = stream_cfg.get('url') or ''
-        
+        stream_url = stream_cfg.get("url") or ""
+
         if stream_url:
             lines.append(urwid.AttrMap(urwid.Text(f"✅ URL: {stream_url}"), "success"))
             # Show shareable link
             if "/" in stream_url:
-                base = stream_url.rsplit('/', 1)[0]
-                mount = stream_url.rsplit('/', 1)[1].split('?')[0]
+                base = stream_url.rsplit("/", 1)[0]
+                mount = stream_url.rsplit("/", 1)[1].split("?")[0]
                 lines.append(urwid.Text(f"🔗 Shareable: {base}/{mount}"))
         else:
             lines.append(urwid.Text("❌ URL: no configurado"))
-        
+
         user_label = stream_cfg.get("user") or "anon"
-        lines.append(urwid.Text(f"User: {user_label} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"))
+        lines.append(
+            urwid.Text(
+                f"User: {user_label} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"
+            )
+        )
         lines.append(urwid.Text(f"Config source: {stream_src}"))
 
         lines.append(urwid.Divider("─"))
@@ -1454,7 +1479,9 @@ class YTBMusicUI:
         if not self.menu_widget:
             return
         body = self._build_diagnostics_body()
-        modal = ModalOverlay(t("modal.diagnostics"), body, on_close=self._close_modal_overlay)
+        modal = ModalOverlay(
+            t("modal.diagnostics"), body, on_close=self._close_modal_overlay
+        )
         overlay = urwid.Overlay(
             modal,
             self.menu_widget,
@@ -1512,7 +1539,16 @@ class YTBMusicUI:
             except Exception:
                 status_line.set_text(msg)
 
-        walker.extend([env_line, cookie_line, ytdlp_line, cache_line, orphan_line, urwid.Divider("─")])
+        walker.extend(
+            [
+                env_line,
+                cookie_line,
+                ytdlp_line,
+                cache_line,
+                orphan_line,
+                urwid.Divider("─"),
+            ]
+        )
         walker.append(urwid.Text(("title", " Acciones ")))
 
         # Helper to refresh status labels in-place
@@ -1545,13 +1581,19 @@ class YTBMusicUI:
         self._settings_update_fn = refresh_status
 
         diag_btn = urwid.Button(f"  {t('settings.diagnostics')}")
-        urwid.connect_signal(diag_btn, "click", lambda b: self._open_diagnostics_from_settings())
+        urwid.connect_signal(
+            diag_btn, "click", lambda b: self._open_diagnostics_from_settings()
+        )
 
         cache_btn = urwid.Button(f"  {t('settings.cache_cleanup')}")
-        urwid.connect_signal(cache_btn, "click", lambda b: self._trigger_cache_cleanup_from_settings())
+        urwid.connect_signal(
+            cache_btn, "click", lambda b: self._trigger_cache_cleanup_from_settings()
+        )
 
         cookies_btn = urwid.Button(f"  {t('settings.refresh_cookies')}")
-        urwid.connect_signal(cookies_btn, "click", lambda b: self._trigger_cookie_refresh_from_settings())
+        urwid.connect_signal(
+            cookies_btn, "click", lambda b: self._trigger_cookie_refresh_from_settings()
+        )
 
         refresh_btn = urwid.Button(f"  {t('settings.refresh_env')}")
         urwid.connect_signal(refresh_btn, "click", refresh_status)
@@ -1559,106 +1601,126 @@ class YTBMusicUI:
         # Streaming config summary
         stream_cfg = self._stream_config or {}
         stream_src = self._stream_config_source
-        stream_url = stream_cfg.get('url') or ''
-        
+        stream_url = stream_cfg.get("url") or ""
+
         # Build shareable link (if configured)
         shareable_link = ""
         if stream_url:
             # Parse mount point for public URL
             if "/" in stream_url:
-                base = stream_url.rsplit('/', 1)[0]
-                mount = stream_url.rsplit('/', 1)[1].split('?')[0]  # Remove query params
+                base = stream_url.rsplit("/", 1)[0]
+                mount = stream_url.rsplit("/", 1)[1].split("?")[
+                    0
+                ]  # Remove query params
                 shareable_link = f"{base}/{mount}"
             else:
                 shareable_link = stream_url
-        
-        stream_status = "📡 No configurado" if not stream_url else f"✅ Activo: {stream_url[:40]}..."
+
+        stream_status = (
+            "📡 No configurado"
+            if not stream_url
+            else f"✅ Activo: {stream_url[:40]}..."
+        )
         stream_line = urwid.Text(stream_status)
-        
+
         walker.append(urwid.Divider("─"))
         walker.append(urwid.Text(("title", f" {t('stream.title')} ")))
-        walker.append(urwid.Text(
-            t("stream.description"),
-            align="left",
-        ))
+        walker.append(
+            urwid.Text(
+                t("stream.description"),
+                align="left",
+            )
+        )
         walker.append(urwid.Divider(" "))
-        walker.append(urwid.Text(
-            t("stream.requirements"),
-            align="left",
-        ))
-        walker.append(urwid.Text(
-            f"   {t('stream.req_icecast')}",
-            align="left",
-        ))
-        walker.append(urwid.Text(
-            f"   {t('stream.req_ffmpeg')}",
-            align="left",
-        ))
-        walker.append(urwid.Text(
-            f"   {t('stream.req_cache')}",
-            align="left",
-        ))
+        walker.append(
+            urwid.Text(
+                t("stream.requirements"),
+                align="left",
+            )
+        )
+        walker.append(
+            urwid.Text(
+                f"   {t('stream.req_icecast')}",
+                align="left",
+            )
+        )
+        walker.append(
+            urwid.Text(
+                f"   {t('stream.req_ffmpeg')}",
+                align="left",
+            )
+        )
+        walker.append(
+            urwid.Text(
+                f"   {t('stream.req_cache')}",
+                align="left",
+            )
+        )
         walker.append(urwid.Divider(" "))
         walker.append(stream_line)
-        
+
         # Show shareable link prominently when configured
         if shareable_link:
             walker.append(urwid.Divider(" "))
-            walker.append(urwid.AttrMap(
-                urwid.Text(f"{t('stream.share_link')}: {shareable_link}"),
-                "success"
-            ))
-            walker.append(urwid.Text(
-                t("stream.share_hint"),
-                align="left"
-            ))
+            walker.append(
+                urwid.AttrMap(
+                    urwid.Text(f"{t('stream.share_link')}: {shareable_link}"), "success"
+                )
+            )
+            walker.append(urwid.Text(t("stream.share_hint"), align="left"))
         else:
             walker.append(urwid.Divider(" "))
-            walker.append(urwid.Text(
-                t("stream.config_hint"),
-                align="left"
-            ))
-            walker.append(urwid.Text(
-                f"   {t('stream.example_url')}",
-                align="left"
-            ))
-        
+            walker.append(urwid.Text(t("stream.config_hint"), align="left"))
+            walker.append(urwid.Text(f"   {t('stream.example_url')}", align="left"))
+
         walker.append(urwid.Divider(" "))
-        walker.append(urwid.Text(
-            f"{t('stream.current_config')}: {stream_cfg.get('user') or t('stream.no_user')} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"
-        ))
-        walker.append(urwid.Text(
-            t("stream.warning"),
-            align="left"
-        ))
-        
+        walker.append(
+            urwid.Text(
+                f"{t('stream.current_config')}: {stream_cfg.get('user') or t('stream.no_user')} | {stream_cfg.get('bitrate', 128)}kbps | {stream_cfg.get('format', 'mp3')}"
+            )
+        )
+        walker.append(urwid.Text(t("stream.warning"), align="left"))
+
         # Streaming control buttons
-        is_streaming = getattr(self, '_stream_broadcaster', None) and self._stream_broadcaster.is_streaming()
+        is_streaming = (
+            getattr(self, "_stream_broadcaster", None)
+            and self._stream_broadcaster.is_streaming()
+        )
         if is_streaming:
             stream_ctrl_btn = urwid.Button(f"  {t('stream.stop')}")
-            urwid.connect_signal(stream_ctrl_btn, "click", lambda b: self._stop_stream())
+            urwid.connect_signal(
+                stream_ctrl_btn, "click", lambda b: self._stop_stream()
+            )
         else:
             stream_ctrl_btn = urwid.Button(f"  {t('stream.start')}")
-            urwid.connect_signal(stream_ctrl_btn, "click", lambda b: self._start_stream())
+            urwid.connect_signal(
+                stream_ctrl_btn, "click", lambda b: self._start_stream()
+            )
 
         stream_btn = urwid.Button(f"  {t('stream.edit')}")
-        urwid.connect_signal(stream_btn, "click", lambda b: self._edit_stream_config(stream_line))
-        
+        urwid.connect_signal(
+            stream_btn, "click", lambda b: self._edit_stream_config(stream_line)
+        )
+
         # Language selector
         from config.i18n import get_language, set_language
+
         current_lang = get_language()
-        lang_label = "🌐 Idioma / Language: " + ("Español" if current_lang == "es" else "English")
+        lang_label = "🌐 Idioma / Language: " + (
+            "Español" if current_lang == "es" else "English"
+        )
         lang_btn = urwid.Button(f"  {lang_label} (Click to toggle)")
-        
+
         def toggle_language(btn):
             from config.i18n import get_language, set_language
+
             new_lang = "en" if get_language() == "es" else "es"
             set_language(new_lang)
             # Refresh the menu to show new language
             self._close_modal_overlay()
             self.status.set(f"Language: {'English' if new_lang == 'en' else 'Español'}")
             self.loop.set_alarm_in(0.1, lambda l, d: self._switch_to_menu())
-        
+
         urwid.connect_signal(lang_btn, "click", toggle_language)
 
         walker.extend(
@@ -1676,14 +1738,18 @@ class YTBMusicUI:
 
         walker.append(urwid.Divider())
         walker.append(urwid.AttrMap(status_line, None, focus_map="highlight"))
-        walker.append(urwid.Text("↑/↓ Navegar • Enter ejecutar • Esc/Q cerrar", align="center"))
+        walker.append(
+            urwid.Text("↑/↓ Navegar • Enter ejecutar • Esc/Q cerrar", align="center")
+        )
         return urwid.ListBox(walker)
 
     def _open_settings_modal(self):
         if not self.menu_widget:
             return
         body = self._build_settings_list()
-        modal = ModalOverlay(t("modal.settings"), body, on_close=self._close_modal_overlay)
+        modal = ModalOverlay(
+            t("modal.settings"), body, on_close=self._close_modal_overlay
+        )
         overlay = urwid.Overlay(
             modal,
             self.menu_widget,
@@ -1726,7 +1792,12 @@ class YTBMusicUI:
                         f"Streaming: {new_cfg.get('url') or 'no configurado'} (user={new_cfg.get('user') or 'anon'}, src=file)"
                     )
 
-            self._show_input_dialog("Streaming formato", "Formato (mp3/ogg)", on_format, default_text=cfg.get("format", "mp3"))
+            self._show_input_dialog(
+                "Streaming formato",
+                "Formato (mp3/ogg)",
+                on_format,
+                default_text=cfg.get("format", "mp3"),
+            )
 
         def ask_bitrate(url, user, password):
             def on_bitrate(val):
@@ -1738,7 +1809,12 @@ class YTBMusicUI:
                     br = 128
                 ask_format(url, user, password, br)
 
-            self._show_input_dialog("Streaming bitrate", "Bitrate (kbps)", on_bitrate, default_text=str(cfg.get("bitrate", 128)))
+            self._show_input_dialog(
+                "Streaming bitrate",
+                "Bitrate (kbps)",
+                on_bitrate,
+                default_text=str(cfg.get("bitrate", 128)),
+            )
 
         def ask_password(url, user):
             def on_password(pwd):
@@ -1746,7 +1822,12 @@ class YTBMusicUI:
                     return
                 ask_bitrate(url, user, pwd)
 
-            self._show_input_dialog("Streaming password", "Password", on_password, default_text=cfg.get("password", ""))
+            self._show_input_dialog(
+                "Streaming password",
+                "Password",
+                on_password,
+                default_text=cfg.get("password", ""),
+            )
 
         def ask_user(url):
             def on_user(u):
@@ -1754,7 +1835,12 @@ class YTBMusicUI:
                     return
                 ask_password(url, u)
 
-            self._show_input_dialog("Streaming usuario", "Usuario", on_user, default_text=cfg.get("user", ""))
+            self._show_input_dialog(
+                "Streaming usuario",
+                "Usuario",
+                on_user,
+                default_text=cfg.get("user", ""),
+            )
 
         def ask_url():
             def on_url(u):
@@ -1762,7 +1848,12 @@ class YTBMusicUI:
                     return
                 ask_user(u)
 
-            self._show_input_dialog("Streaming URL", "URL (icecast/shout/http)", on_url, default_text=cfg.get("url", ""))
+            self._show_input_dialog(
+                "Streaming URL",
+                "URL (icecast/shout/http)",
+                on_url,
+                default_text=cfg.get("url", ""),
+            )
 
         ask_url()
 
@@ -1773,46 +1864,50 @@ class YTBMusicUI:
             self.status.set("❌ FFmpeg no encontrado. Instalalo para streaming.")
             self.log_activity("FFmpeg no disponible", "error")
             return
-        
+
         # Check stream config
-        if not self._stream_config.get("url") or not self._stream_config.get("password"):
+        if not self._stream_config.get("url") or not self._stream_config.get(
+            "password"
+        ):
             self.status.set("❌ Configurá URL y password primero")
             self.log_activity("Stream no configurado", "error")
             return
-        
+
         # Check we have something to stream
         if not getattr(self, "current_playlist", None):
             self.status.set("❌ No hay playlist cargada")
             return
-        
+
         # Get current track's cached file
         track = self.current_playlist.get_current_track()
         if not track:
             self.status.set("❌ No hay track actual")
             return
-        
+
         # Find cached file
         video_id = self._extract_video_id(track.url)
         if not video_id:
             self.status.set("❌ No se puede obtener video ID")
             return
-        
+
         cache_path = None
         for ext in [".m4a", ".webm", ".mp3", ".ogg"]:
             test_path = Path("cache") / f"{video_id}{ext}"
             if test_path.exists():
                 cache_path = test_path
                 break
-        
+
         if not cache_path:
             self.status.set("❌ Track no en cache. Descargalo primero (D).")
             return
-        
+
         # Initialize broadcaster
         self._stream_broadcaster = StreamBroadcaster(self._stream_config)
-        self._stream_broadcaster._on_error = lambda msg: self.status.set(f"Stream error: {msg[:50]}")
+        self._stream_broadcaster._on_error = lambda msg: self.status.set(
+            f"Stream error: {msg[:50]}"
+        )
         self._stream_broadcaster._on_status = lambda msg: self.log_activity(msg, "info")
-        
+
         # Start streaming
         if self._stream_broadcaster.start_stream(str(cache_path)):
             link = self._stream_broadcaster.get_shareable_link()
@@ -1824,7 +1919,7 @@ class YTBMusicUI:
 
     def _stop_stream(self):
         """Stop current stream."""
-        if hasattr(self, '_stream_broadcaster') and self._stream_broadcaster:
+        if hasattr(self, "_stream_broadcaster") and self._stream_broadcaster:
             self._stream_broadcaster.stop_stream()
             self._stream_broadcaster = None
             self.status.set("🛑 Stream detenido")
@@ -1838,10 +1933,8 @@ class YTBMusicUI:
         if not url:
             return None
         import re
-        patterns = [
-            r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})',
-            r'^([a-zA-Z0-9_-]{11})$'
-        ]
+
+        patterns = [r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", r"^([a-zA-Z0-9_-]{11})$"]
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
@@ -1951,9 +2044,7 @@ class YTBMusicUI:
         self._show_list_modal("Skins", items, on_select)
 
     def _open_background_modal(self):
-        disclaimer = (
-            "Fondos sin restricciones; revisá combinaciones antes de usar (pueden ser intensos)."
-        )
+        disclaimer = "Fondos sin restricciones; revisá combinaciones antes de usar (pueden ser intensos)."
         if not self.backgrounds:
             self.status.set("No hay fondos en backgrounds/")
             return
@@ -1982,11 +2073,19 @@ class YTBMusicUI:
 
         self._show_list_modal("Fondos", items, on_select, disclaimer=disclaimer)
 
-    def _show_list_modal(self, title: str, items: List[dict], on_select, disclaimer: str = None):
+    def _show_list_modal(
+        self, title: str, items: List[dict], on_select, disclaimer: str = None
+    ):
         """Render a generic list modal overlay."""
         # Keep menu visible underneath
         self.state = UIState.EDIT
-        dialog = ListDialog(title, items, on_select, on_cancel=self._switch_to_menu, disclaimer=disclaimer)
+        dialog = ListDialog(
+            title,
+            items,
+            on_select,
+            on_cancel=self._switch_to_menu,
+            disclaimer=disclaimer,
+        )
         overlay = urwid.Overlay(
             dialog,
             self.menu_widget,
@@ -2003,8 +2102,12 @@ class YTBMusicUI:
         fg = self._normalize_color(fg)
         bg = self._normalize_color(bg)
         try:
-            self.loop.screen.register_palette_entry(self._background_palette_name, fg, bg)
-            logger.info(f"[BG] Applying palette {self._background_palette_name}: fg={fg} bg={bg}")
+            self.loop.screen.register_palette_entry(
+                self._background_palette_name, fg, bg
+            )
+            logger.info(
+                f"[BG] Applying palette {self._background_palette_name}: fg={fg} bg={bg}"
+            )
             self.player_view.set_background_attr(self._background_palette_name)
             # Force immediate redraw to avoid stale colors
             try:
@@ -2063,7 +2166,9 @@ class YTBMusicUI:
         def advance(loop=None, data=None):
             if not self._background_cycle:
                 return
-            self._background_cycle_idx = (self._background_cycle_idx + 1) % len(self._background_cycle)
+            self._background_cycle_idx = (self._background_cycle_idx + 1) % len(
+                self._background_cycle
+            )
             fg, bg = self._background_cycle[self._background_cycle_idx]
             self._set_player_background(fg, bg)
             self._background_alarm = self.loop.set_alarm_in(interval, advance)
@@ -2074,7 +2179,7 @@ class YTBMusicUI:
         """Apply background preset by index (safe if none available)."""
         self._cancel_background_cycle()
         self._stop_gradient_animation()  # Stop any active gradient
-        
+
         if not self.backgrounds:
             self.current_background_meta = None
             self.player_view.set_background_attr(None)
@@ -2088,14 +2193,16 @@ class YTBMusicUI:
             return
         self.current_background_idx = idx
         self.current_background_meta = meta
-        
+
         # Check if this is a gradient background (demoscene mode)
         if BackgroundLoader.is_gradient(meta):
             self._start_gradient_animation(meta)
             self.log_activity(f"🌈 Gradient: {meta.get('name') or name}", "info")
         else:
             # Standard solid/cycling background
-            self._set_player_background(meta.get("fg") or "white", meta.get("bg") or "black")
+            self._set_player_background(
+                meta.get("fg") or "white", meta.get("bg") or "black"
+            )
             self._schedule_background_cycle(meta)
             self.log_activity(f"Fondo: {meta.get('name') or name}", "info")
 
@@ -2105,14 +2212,16 @@ class YTBMusicUI:
         self._gradient_active = True
         # Start animation loop
         speed = self._gradient_renderer.get_speed()
-        self._gradient_alarm = self.loop.set_alarm_in(speed, self._gradient_animate_loop)
+        self._gradient_alarm = self.loop.set_alarm_in(
+            speed, self._gradient_animate_loop
+        )
         # Apply initial gradient
         self._apply_gradient_colors()
 
     def _stop_gradient_animation(self):
         """Stop gradient animation if active."""
         self._gradient_active = False
-        if hasattr(self, '_gradient_alarm') and self._gradient_alarm:
+        if hasattr(self, "_gradient_alarm") and self._gradient_alarm:
             try:
                 self.loop.remove_alarm(self._gradient_alarm)
             except Exception:
@@ -2129,7 +2238,9 @@ class YTBMusicUI:
         self._apply_gradient_colors()
         # Schedule next frame
         speed = self._gradient_renderer.get_speed()
-        self._gradient_alarm = self.loop.set_alarm_in(speed, self._gradient_animate_loop)
+        self._gradient_alarm = self.loop.set_alarm_in(
+            speed, self._gradient_animate_loop
+        )
 
     def _apply_gradient_colors(self):
         """Apply current gradient colors to the player view."""
@@ -2151,11 +2262,12 @@ class YTBMusicUI:
         if not self.backgrounds:
             self.status.set("No hay fondos disponibles")
             return
-        self.current_background_idx = (self.current_background_idx + direction) % len(self.backgrounds)
+        self.current_background_idx = (self.current_background_idx + direction) % len(
+            self.backgrounds
+        )
         self._apply_background_by_idx(self.current_background_idx)
         name = self.backgrounds[self.current_background_idx]
         self.status.notify(f"Fondo: {name}")
-
 
     def log_activity(self, message: str, style="info"):
         """Log to the scrolling message log."""
@@ -2274,8 +2386,12 @@ class YTBMusicUI:
             msg = f"Reintento {attempt}/{max_attempts} en {delay:.0f}s"
             if title:
                 msg += f" — {title[:40]}"
-            logger.warning(f"[DL {rid}] retry {attempt}/{max_attempts} in {delay:.1f}s: {err}")
-            self.log_activity(f"Retrying download ({attempt}/{max_attempts}) in {delay:.0f}s", "info")
+            logger.warning(
+                f"[DL {rid}] retry {attempt}/{max_attempts} in {delay:.1f}s: {err}"
+            )
+            self.log_activity(
+                f"Retrying download ({attempt}/{max_attempts}) in {delay:.0f}s", "info"
+            )
             self.status.notify(msg)
             return
 
@@ -2438,10 +2554,14 @@ class YTBMusicUI:
 
         def worker():
             try:
-                path = self.downloader.refresh_cookies_from_browser(browser=browser_hint)
+                path = self.downloader.refresh_cookies_from_browser(
+                    browser=browser_hint
+                )
                 self.loop.set_alarm_in(
                     0,
-                    lambda l, d: self._cookie_refresh_result(True, browser_hint, path, None),
+                    lambda l, d: self._cookie_refresh_result(
+                        True, browser_hint, path, None
+                    ),
                 )
             except Exception as e:
                 self.loop.set_alarm_in(
@@ -2497,14 +2617,16 @@ class YTBMusicUI:
                     info = self.downloader.extract_playlist_items(url)
                     suggested_name = info.get("title", "")
                     # Clean up title if it contains " - Topic" etc? maybe not.
-                    
+
                     # Schedule the name dialog on main thread
-                    self.loop.set_alarm_in(0, lambda l, d: show_name_dialog(suggested_name))
+                    self.loop.set_alarm_in(
+                        0, lambda l, d: show_name_dialog(suggested_name)
+                    )
                 except Exception as e:
                     logger.error(f"Metadata fetch failed: {e}")
                     # Fallback to empty name
                     self.loop.set_alarm_in(0, lambda l, d: show_name_dialog(""))
-            
+
             def show_name_dialog(default_name):
                 # Guard: If user cancelled (state switched back to MENU), abort
                 if self.state != UIState.LOADING:
@@ -2525,7 +2647,9 @@ class YTBMusicUI:
                             logger.info(f"[THREAD] Starting import for URL: {url}")
 
                             result = import_playlist_from_youtube(
-                                url, playlist_name=name or default_name or None, overwrite=False
+                                url,
+                                playlist_name=name or default_name or None,
+                                overwrite=False,
                             )
                             logger.info(
                                 f"[THREAD] Import result: {result['name']}, added={result['added']}"
@@ -2550,8 +2674,13 @@ class YTBMusicUI:
                     # Start polling for thread completion
                     self.loop.set_alarm_in(0.5, self._check_import_thread)
 
-                self._show_input_dialog("Playlist Name (Optional)", "Name", on_name_entered, default_text=default_name)
-            
+                self._show_input_dialog(
+                    "Playlist Name (Optional)",
+                    "Name",
+                    on_name_entered,
+                    default_text=default_name,
+                )
+
             # Start the metadata fetch
             threading.Thread(target=fetch_metadata_thread, daemon=True).start()
 
@@ -2778,9 +2907,8 @@ class YTBMusicUI:
 
     def _download_selected_playlist(self):
         """Download missing tracks for the playlist selected in the menu."""
-        if (
-            self.selected_playlist_idx is None
-            or self.selected_playlist_idx >= len(self.playlists)
+        if self.selected_playlist_idx is None or self.selected_playlist_idx >= len(
+            self.playlists
         ):
             self.status.set("Select a playlist first!")
             return
@@ -3085,7 +3213,7 @@ class YTBMusicUI:
     def run(self):
         # Validate playlists at startup (fix duplicates, sanitize titles, etc.)
         self._run_startup_validation()
-        
+
         if self.skins:
             self._safe_call(self._load_skin, 0)
         else:
@@ -3100,11 +3228,12 @@ class YTBMusicUI:
         self.loop.set_alarm_in(2.0, lambda l, d: self._start_auto_downloads())
 
         self.loop.run()
-    
+
     def _run_startup_validation(self):
         """Validate all playlists at startup."""
         try:
             from core.playlist_validator import run_validation
+
             report = run_validation(auto_fix=True)
             if report.playlists_fixed:
                 logger.info(f"[STARTUP] {report.summary()}")
@@ -3605,7 +3734,9 @@ class YTBMusicUI:
                 self.loop.set_alarm_in(0, lambda l, d: self._on_rename_selected())
             elif key in ("d", "D"):
                 # Defer to next tick to avoid input cycle race conditions
-                self.loop.set_alarm_in(0, lambda l, d: self._download_selected_playlist())
+                self.loop.set_alarm_in(
+                    0, lambda l, d: self._download_selected_playlist()
+                )
             elif key in ("a", "A"):
                 self._toggle_animation()
             elif key in ("f", "F"):
@@ -3667,7 +3798,7 @@ def main():
     try:
         # Dependency Injection Wiring
         events_queue = queue.Queue()
-        
+
         player = MusicPlayer()
         downloader = YouTubeDownloader(cache_dir="cache")
         playlist_manager = PlaylistManager(playlists_dir="playlists")

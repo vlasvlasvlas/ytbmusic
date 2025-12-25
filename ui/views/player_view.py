@@ -7,7 +7,10 @@ if TYPE_CHECKING:
 PAD_WIDTH = 120
 PAD_HEIGHT = 88
 
-def pad_lines(lines: List[str], width: int = PAD_WIDTH, height: int = PAD_HEIGHT) -> List[str]:
+
+def pad_lines(
+    lines: List[str], width: int = PAD_WIDTH, height: int = PAD_HEIGHT
+) -> List[str]:
     padded = []
     for line in lines:
         line = line.rstrip("\n")
@@ -53,7 +56,7 @@ class PlayerView:
         """Render the current skin with player context."""
         c = self.controller
         width, height = self._compute_canvas_size()
-        
+
         # Determine cached status logic (originally in _render_skin start)
         # Note: logic modified to access controller state
         if c.current_playlist:
@@ -83,7 +86,7 @@ class PlayerView:
             "STATUS": (
                 "♪"
                 if c.player.is_playing()
-                else ("⌛" if getattr(c, 'is_buffering', False) else "■")
+                else ("⌛" if getattr(c, "is_buffering", False) else "■")
             ),
             "NEXT_TRACK": "",
             "PLAYLIST": "",
@@ -103,9 +106,7 @@ class PlayerView:
                 context["SHUFFLE_STATUS"] = (
                     "ON" if c.current_playlist.shuffle_enabled else "OFF"
                 )
-                context["REPEAT_STATUS"] = (
-                    c.current_playlist.repeat_mode.value.upper()
-                )
+                context["REPEAT_STATUS"] = c.current_playlist.repeat_mode.value.upper()
 
                 # Use peek_next() for clean next track prediction
                 next_track = c.current_playlist.peek_next()
@@ -123,9 +124,9 @@ class PlayerView:
 
         # Ensure skin_lines exists
         if not c.skin_lines:
-             # Fallback or simple clear
-             self.widget.update("")
-             return
+            # Fallback or simple clear
+            self.widget.update("")
+            return
 
         lines = pad_lines(c.skin_lines, width, height)
         rendered = c.skin_loader.render(

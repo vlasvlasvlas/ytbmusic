@@ -57,14 +57,14 @@ class MusicPlayer:
         self.stop()
         self.current_url = source
         logger.info(f"Playing: {source[:80]}... (Start: {start_time}, End: {end_time})")
-        
+
         # Configure VLC media options for start/end time
         options = []
         if start_time > 0:
             options.append(f"start-time={start_time}")
         if end_time:
             options.append(f"stop-time={end_time}")
-            
+
         media = self._instance.media_new(source, *options)
         self._player.set_media(media)
         self._player.play()

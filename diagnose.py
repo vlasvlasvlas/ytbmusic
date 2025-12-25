@@ -31,12 +31,14 @@ print()
 print("2️⃣ Test Variables de Metadata:")
 print("   Checkeando que existan en PlayerView.render...")
 
+
 def _read_source(path):
     try:
         return Path(path).read_text()
     except Exception as e:
         print(f"   ❌ No pude leer {path}: {e}")
         return ""
+
 
 player_view_source = _read_source("ui/views/player_view.py")
 menu_view_source = _read_source("ui/views/menu_view.py")
@@ -108,9 +110,9 @@ print()
 # Test 6: Keybindings
 print("6️⃣ Test Nuevas Teclas:")
 new_keys = [
-    ("key in (\"t\", \"T\")", "T - Track picker"),
-    ("key in (\"s\", \"S\")", "S - Skin selector"),
-    ("key in (\"a\", \"A\")", "A - Animación"),
+    ('key in ("t", "T")', "T - Track picker"),
+    ('key in ("s", "S")', "S - Skin selector"),
+    ('key in ("a", "A")', "A - Animación"),
 ]
 
 for check, desc in new_keys:

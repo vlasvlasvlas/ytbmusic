@@ -17,6 +17,7 @@ def list_playlists() -> List[str]:
     PLAYLISTS_DIR.mkdir(exist_ok=True)
     return sorted([p.stem for p in PLAYLISTS_DIR.glob("*.json")])
 
+
 def sanitize_filename(name: str) -> str:
     """Sanitize playlist name for use as filename (alphanumeric + space + underscore only)."""
     # Strict sanitization: Alphanumeric, space, underscore (NO hyphens for consistency)
@@ -29,18 +30,20 @@ def sanitize_filename(name: str) -> str:
 def _get_playlist_path(name: str) -> Path:
     """
     Get path for playlist and enforce security (jail check).
-    
+
     1. Sanitizes the name.
     2. Resolves path and ensures it is within PLAYLISTS_DIR.
     """
     safe_name = sanitize_filename(name)
     path = (PLAYLISTS_DIR / f"{safe_name}.json").resolve()
     root = PLAYLISTS_DIR.resolve()
-    
+
     # Security check: Prevent path traversal
     if not str(path).startswith(str(root)):
-        raise ValueError(f"Security detection: Path traversal attempt blocked for '{name}'")
-        
+        raise ValueError(
+            f"Security detection: Path traversal attempt blocked for '{name}'"
+        )
+
     return path
 
 
@@ -61,13 +64,13 @@ def load_playlist(name: str) -> Dict:
 def save_playlist(name: str, data: Dict):
     """Persist playlist JSON."""
     PLAYLISTS_DIR.mkdir(exist_ok=True)
-    
+
     # Use secure path resolution
     path = _get_playlist_path(name)
-    
+
     # Update metadata to match the sanitized filename used (source of truth)
     data["metadata"]["name"] = path.stem
-    
+
     with PLAYLIST_LOCK:
         write_json_atomic(path, data)
 
@@ -222,8 +225,8 @@ def import_playlist_from_youtube(
                 continue
             # Sanitize title to alphanumeric (no special chars)
             raw_title = item.get("title", "Unknown")
-            clean_title = re.sub(r'[^\w\s\-]', '', raw_title)
-            clean_title = re.sub(r'\s+', ' ', clean_title).strip() or "Unknown"
+            clean_title = re.sub(r"[^\w\s\-]", "", raw_title)
+            clean_title = re.sub(r"\s+", " ", clean_title).strip() or "Unknown"
             track_entry = {
                 "title": clean_title,
                 "artist": item.get("artist", "Unknown Artist"),

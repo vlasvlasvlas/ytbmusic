@@ -410,7 +410,8 @@ class DownloadManager:
                     )
                     with self._cv:
                         heapq.heappush(
-                            self._queue, (retry_task.priority, next(self._seq), retry_task)
+                            self._queue,
+                            (retry_task.priority, next(self._seq), retry_task),
                         )
                         self._queued_urls.add(retry_task.url)
                         self._cv.notify_all()
