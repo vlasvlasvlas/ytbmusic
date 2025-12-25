@@ -1,0 +1,23 @@
+{
+    "name": "Demoscene Neon",
+    "mode": "gradient",
+    "pattern": "wave_triangle",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark magenta",
+        "light magenta",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "black"
+    ],
+    "speed": 0.06,
+    "step_size": 1.5,
+    "wave_amplitude": 1.2,
+    "wave_frequency": 1.5,
+    "phase_shift": 0.08,
+    "color_spread": 1.6,
+    "smoothness": 1,
+    "fg": "white"
+}

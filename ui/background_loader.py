@@ -36,14 +36,22 @@ class BackgroundLoader:
         mode = meta.get("mode", "solid")
 
         if mode == "gradient":
-            # Return gradient-specific config
+            # Return gradient-specific config with all demoscene parameters
             data = {
                 "name": meta.get("name") or name,
                 "mode": "gradient",
+                "pattern": meta.get("pattern", "wave_sine"),
                 "direction": meta.get("direction", "vertical"),
+                "angle": meta.get("angle", 45),
                 "colors": meta.get("colors", ["dark blue", "light cyan", "white"]),
-                "speed": meta.get("speed", 0.15),
-                "band_height": meta.get("band_height", 4),
+                "speed": meta.get("speed", 0.12),
+                "step_size": meta.get("step_size", 1.0),
+                "band_height": meta.get("band_height", 3),
+                "wave_amplitude": meta.get("wave_amplitude", 1.5),
+                "wave_frequency": meta.get("wave_frequency", 1.0),
+                "phase_shift": meta.get("phase_shift", 0.05),
+                "color_spread": meta.get("color_spread", 1.0),
+                "smoothness": meta.get("smoothness", 1),
                 "fg": meta.get("fg", "white"),
             }
         else:

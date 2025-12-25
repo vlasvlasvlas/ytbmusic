@@ -2208,10 +2208,12 @@ class YTBMusicUI:
 
     def _start_gradient_animation(self, meta: Dict[str, Any]):
         """Start demoscene-style gradient animation."""
+        logger.info(f"[GRADIENT] Starting animation: {meta.get('name')}")
         self._gradient_renderer = GradientRenderer(meta)
         self._gradient_active = True
         # Start animation loop
         speed = self._gradient_renderer.get_speed()
+        logger.info(f"[GRADIENT] Speed: {speed}s, pattern: {meta.get('pattern')}")
         self._gradient_alarm = self.loop.set_alarm_in(
             speed, self._gradient_animate_loop
         )
@@ -2232,6 +2234,7 @@ class YTBMusicUI:
     def _gradient_animate_loop(self, loop=None, data=None):
         """Animation loop for gradient backgrounds."""
         if not self._gradient_active or not self._gradient_renderer:
+            logger.debug("[GRADIENT] Loop skipped: not active")
             return
         # Advance animation frame
         self._gradient_renderer.advance_frame()
@@ -2245,17 +2248,28 @@ class YTBMusicUI:
     def _apply_gradient_colors(self):
         """Apply current gradient colors to the player view."""
         if not self._gradient_renderer:
+            logger.warning("[GRADIENT] No renderer in _apply_gradient_colors")
             return
-        # Get colors for each line
-        colors = self._gradient_renderer.get_line_colors(PAD_HEIGHT)
-        # For now, apply the middle color as the dominant background
-        # Full per-line rendering would require a custom widget
-        mid_idx = len(colors) // 2
-        if colors:
-            fg, bg = colors[mid_idx]
-            self._set_player_background(fg, bg)
-            # Cycle through colors by shifting dominant color
-            # This creates a "sweep" effect
+        
+        # Get terminal size for proper gradient calculation
+        try:
+            width, height = self.player_view._compute_canvas_size()
+        except Exception:
+            width, height = 80, PAD_HEIGHT
+        
+        # Get colors for each line - this creates the sweep effect
+        colors = self._gradient_renderer.get_line_colors(height, width)
+        direction = self._gradient_renderer.direction
+        logger.debug(f"[GRADIENT] Applying {len(colors)} colors, direction={direction}")
+        
+        # Use the new per-line gradient rendering for real sweep effect
+        self.player_view.set_gradient_colors(colors, self.loop, direction)
+        
+        # Force redraw
+        try:
+            self.loop.draw_screen()
+        except Exception:
+            pass
 
     def _cycle_background(self, direction: int = 1):
         """Cycle through backgrounds in player mode."""

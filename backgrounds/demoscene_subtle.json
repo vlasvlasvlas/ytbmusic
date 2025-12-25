@@ -1,0 +1,21 @@
+{
+    "name": "Demoscene Subtle",
+    "mode": "gradient",
+    "pattern": "wave_sine",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark gray",
+        "dark blue",
+        "dark gray",
+        "black"
+    ],
+    "speed": 0.20,
+    "step_size": 0.4,
+    "wave_amplitude": 0.8,
+    "wave_frequency": 0.5,
+    "phase_shift": 0.02,
+    "color_spread": 0.8,
+    "smoothness": 3,
+    "fg": "light gray"
+}

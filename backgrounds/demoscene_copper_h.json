@@ -1,8 +1,8 @@
 {
-    "name": "Demoscene Copper",
+    "name": "Demoscene Copper H",
     "mode": "gradient",
     "pattern": "wave_sine",
-    "direction": "vertical",
+    "direction": "horizontal",
     "colors": [
         "black",
         "dark blue",
@@ -13,12 +13,11 @@
         "dark cyan",
         "dark blue"
     ],
-    "speed": 0.10,
-    "step_size": 0.7,
-    "band_height": 3,
-    "wave_amplitude": 1.8,
-    "wave_frequency": 0.8,
-    "phase_shift": 0.04,
+    "speed": 0.08,
+    "step_size": 1.0,
+    "wave_amplitude": 1.5,
+    "wave_frequency": 1.0,
+    "phase_shift": 0.03,
     "color_spread": 1.2,
     "smoothness": 2,
     "fg": "white"
