@@ -11,10 +11,40 @@ class MenuListBox(urwid.ListBox):
 
     # Keys that should NOT be handled by the ListBox
     PASSTHROUGH_KEYS = (
-        "i", "I", "d", "D", "q", "Q",
-        "a", "A", "b", "B", "c", "C", "e", "E", "f", "F",
-        "g", "G", "h", "H", "j", "J", "k", "K", "l", "L",
-        "o", "O", "p", "P", "r", "R", "x", "X",
+        "i",
+        "I",
+        "d",
+        "D",
+        "q",
+        "Q",
+        "a",
+        "A",
+        "b",
+        "B",
+        "c",
+        "C",
+        "e",
+        "E",
+        "f",
+        "F",
+        "g",
+        "G",
+        "h",
+        "H",
+        "j",
+        "J",
+        "k",
+        "K",
+        "l",
+        "L",
+        "o",
+        "O",
+        "p",
+        "P",
+        "r",
+        "R",
+        "x",
+        "X",
     )
 
     def keypress(self, size, key):
@@ -55,7 +85,9 @@ class MenuView:
             current_pl = self.controller.current_playlist.get_name()
         elif self.controller.selected_playlist_idx is not None:
             try:
-                current_pl = self.controller.playlists[self.controller.selected_playlist_idx]
+                current_pl = self.controller.playlists[
+                    self.controller.selected_playlist_idx
+                ]
             except Exception:
                 current_pl = None
 
@@ -123,7 +155,9 @@ class MenuView:
             search_btn, "click", lambda b: self.controller._prompt_global_search()
         )
         settings_btn = urwid.Button(f"[O] {t('menu.settings')}")
-        urwid.connect_signal(settings_btn, "click", lambda b: self.controller._open_settings_modal())
+        urwid.connect_signal(
+            settings_btn, "click", lambda b: self.controller._open_settings_modal()
+        )
         walker.append(urwid.AttrMap(search_btn, None, focus_map="highlight"))
         walker.append(urwid.AttrMap(settings_btn, None, focus_map="highlight"))
 

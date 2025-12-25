@@ -1,5 +1,6 @@
 import urwid
 
+
 class InputDialog(urwid.WidgetWrap):
     """ASCII-styled input dialog for retro aesthetic."""
 

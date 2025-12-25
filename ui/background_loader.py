@@ -31,10 +31,10 @@ class BackgroundLoader:
             raise FileNotFoundError(f"Background '{name}' not found")
         with path.open("r", encoding="utf-8") as f:
             meta = json.load(f)
-        
+
         # Check if this is a gradient background
         mode = meta.get("mode", "solid")
-        
+
         if mode == "gradient":
             # Return gradient-specific config
             data = {

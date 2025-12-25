@@ -37,9 +37,14 @@ class YouTubeDownloader:
         # Basic check to prevent local file access
         if "file://" in url:
             raise ValueError("Local file URLs are not allowed")
-            
+
         # Domain allowlist
-        allowed_domains = ["youtube.com", "www.youtube.com", "youtu.be", "music.youtube.com"]
+        allowed_domains = [
+            "youtube.com",
+            "www.youtube.com",
+            "youtu.be",
+            "music.youtube.com",
+        ]
         # Simple string check (robust enough for typical usage, parsed check better but needs urllib)
         is_allowed = any(domain in url for domain in allowed_domains)
         if not is_allowed:
@@ -166,11 +171,7 @@ class YouTubeDownloader:
         Returns the path to the cookies file if successful.
         """
 
-        browser = (
-            browser
-            or os.environ.get("YTBMUSIC_COOKIES_BROWSER")
-            or "firefox"
-        )
+        browser = browser or os.environ.get("YTBMUSIC_COOKIES_BROWSER") or "firefox"
         cookie_file_env = output or os.environ.get("YTBMUSIC_COOKIES_FILE")
         cookie_path = Path(cookie_file_env) if cookie_file_env else Path("cookies.txt")
         cookie_path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,9 +195,7 @@ class YouTubeDownloader:
         ]
 
         logger.info(f"Refreshing cookies via browser='{browser}' → {cookie_path}")
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, check=False
-        )
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if proc.returncode != 0:
             err_output = proc.stderr.strip() or proc.stdout.strip()
             raise RuntimeError(
@@ -263,6 +262,7 @@ class YouTubeDownloader:
     def get_versions(self) -> Dict[str, str]:
         """Expose dependency versions for diagnostics."""
         import platform
+
         try:
             yt_dlp_version = yt_dlp.version.__version__  # type: ignore[attr-defined]
         except Exception:
@@ -272,7 +272,9 @@ class YouTubeDownloader:
             "python": platform.python_version(),
         }
 
-    def cache_candidates(self, url: str, title: Optional[str], artist: Optional[str]) -> List[Path]:
+    def cache_candidates(
+        self, url: str, title: Optional[str], artist: Optional[str]
+    ) -> List[Path]:
         """
         Return possible cache file paths (stem-based) for a track.
         Helpful for cache cleaning/diagnostics.
@@ -483,9 +485,13 @@ class YouTubeDownloader:
                         info = ydl.extract_info(url, download=False)
                     break
                 except Exception as e:
-                    if attempt < self.MAX_RETRIES and ("429" in str(e) or "Too many requests" in str(e).lower()):
+                    if attempt < self.MAX_RETRIES and (
+                        "429" in str(e) or "Too many requests" in str(e).lower()
+                    ):
                         wait = (attempt + 1) * 30 + random.uniform(1, 10)
-                        logger.warning(f"HTTP 429. Retrying extract_playlist in {wait:.1f}s...")
+                        logger.warning(
+                            f"HTTP 429. Retrying extract_playlist in {wait:.1f}s..."
+                        )
                         time.sleep(wait)
                         continue
                     raise
@@ -506,22 +512,24 @@ class YouTubeDownloader:
                         # (though we want to cache the whole file, the track list needs unique logical items)
                         # We'll handle stripping the hash in _extract_video_id
                         full_url = f"{info['webpage_url'] or info['url']}#chapter_{idx}"
-                        
-                        items.append({
-                            "title": title,
-                            "artist": info.get("uploader", "Unknown Artist"),
-                            "duration": (end - start) if (end and start) else 0,
-                            "url": full_url,
-                            "start_time": start,
-                            "end_time": end
-                        })
+
+                        items.append(
+                            {
+                                "title": title,
+                                "artist": info.get("uploader", "Unknown Artist"),
+                                "duration": (end - start) if (end and start) else 0,
+                                "url": full_url,
+                                "start_time": start,
+                                "end_time": end,
+                            }
+                        )
                     return {
                         "title": info.get("title", "Imported Playlist"),
                         "count": len(items),
                         "items": items,
                         "source_url": base_webpage_url or url,
                     }
-                
+
                 # If no entries and no chapters, treat as single video
                 elif info.get("id") and info.get("title"):
                     entries = [info]
@@ -551,7 +559,7 @@ class YouTubeDownloader:
                             "url": eurl,
                         }
                     )
-            
+
             return {
                 "title": info.get("title", "Imported Playlist"),
                 "count": len(items),
@@ -613,7 +621,9 @@ class YouTubeDownloader:
                         ydl.download([url])
                     break
                 except Exception as e:
-                    if attempt < self.MAX_RETRIES and ("429" in str(e) or "Too many requests" in str(e).lower()):
+                    if attempt < self.MAX_RETRIES and (
+                        "429" in str(e) or "Too many requests" in str(e).lower()
+                    ):
                         wait = (attempt + 1) * 30 + random.uniform(1, 10)
                         logger.warning(f"HTTP 429. Retrying download in {wait:.1f}s...")
                         time.sleep(wait)
@@ -645,26 +655,28 @@ class YouTubeDownloader:
             Path to cached file if exists, None otherwise
         """
         import re
-        
+
         # Strategy 1: Check exact name using current format
         if title:
             safe_name = self._make_cache_filename(title, artist)
             cache_file = self.cache_dir / f"{safe_name}.m4a"
             if cache_file.exists():
                 return str(cache_file)
-        
+
         # Strategy 2: Fallback to video_id
         video_id = self._extract_video_id(url)
         cache_file = self.cache_dir / f"{video_id}.m4a"
         if cache_file.exists():
             return str(cache_file)
-        
+
         # Strategy 3: Fuzzy search - look for files containing key parts of title/artist
         if title:
             # Extract alphanumeric core from title (first significant word)
             title_core = re.sub(r"[^a-zA-Z0-9]", "", title)[:20]
-            artist_core = re.sub(r"[^a-zA-Z0-9]", "", artist or "")[:15] if artist else ""
-            
+            artist_core = (
+                re.sub(r"[^a-zA-Z0-9]", "", artist or "")[:15] if artist else ""
+            )
+
             if title_core:
                 # Search for any m4a file containing both cores
                 for f in self.cache_dir.glob("*.m4a"):
@@ -711,7 +723,7 @@ class YouTubeDownloader:
         # Strip fragment if present
         if "#" in url:
             url = url.split("#")[0]
-            
+
         # Try to extract video ID from URL
         if "v=" in url:
             return url.split("v=")[1].split("&")[0]
