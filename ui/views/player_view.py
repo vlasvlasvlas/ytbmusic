@@ -43,7 +43,7 @@ class SkinWidget(urwid.WidgetWrap):
             lines: List of text strings
             colors: List of (fg, bg) tuples
             loop: urwid MainLoop for palette registration
-            direction: "vertical" (colors per line) or "horizontal" (colors per segment in each line)
+            direction: "vertical", "horizontal", "diagonal", "diagonal_inv", "radial"
         """
         if not lines or not colors:
             self.text.set_text("\n".join(lines) if lines else "")
@@ -51,6 +51,12 @@ class SkinWidget(urwid.WidgetWrap):
         
         if direction == "horizontal":
             self._update_horizontal(lines, colors, loop)
+        elif direction == "diagonal":
+            self._update_diagonal(lines, colors, loop)
+        elif direction == "diagonal_inv":
+            self._update_diagonal_inv(lines, colors, loop)
+        elif direction == "radial":
+            self._update_radial(lines, colors, loop)
         else:
             self._update_vertical(lines, colors, loop)
     
@@ -106,6 +112,172 @@ class SkinWidget(urwid.WidgetWrap):
                 
                 fg, bg = colors[seg_idx]
                 palette_name = f"hseg_{bg}_{fg}"
+                
+                if loop:
+                    try:
+                        loop.screen.register_palette_entry(palette_name, fg, bg)
+                    except Exception:
+                        pass
+                
+                markup.append((palette_name, segment))
+        
+        self.text.set_text(markup)
+    
+    def _update_diagonal(self, lines: List[str], colors: List[Tuple[str, str]], loop=None):
+        """Apply colors diagonally - color based on row + column position."""
+        markup = []
+        num_colors = len(colors)
+        num_lines = len(lines)
+        
+        # Determine max line width for normalization
+        max_width = max(len(line) for line in lines) if lines else 80
+        
+        for row, line in enumerate(lines):
+            if row > 0:
+                markup.append("\n")
+            
+            if not line:
+                markup.append("")
+                continue
+            
+            # Calculate segment width
+            segment_width = max(1, len(line) // num_colors)
+            
+            for seg_idx in range(num_colors):
+                start = seg_idx * segment_width
+                if seg_idx == num_colors - 1:
+                    end = len(line)
+                else:
+                    end = start + segment_width
+                
+                if start >= len(line):
+                    break
+                
+                segment = line[start:end]
+                if not segment:
+                    continue
+                
+                # Diagonal: color based on normalized (row + column)
+                # This creates a diagonal sweep from top-left to bottom-right
+                row_factor = row / max(num_lines, 1)
+                col_factor = seg_idx / max(num_colors, 1)
+                diag_pos = (row_factor + col_factor) / 2  # Average gives diagonal
+                color_idx = int(diag_pos * num_colors) % num_colors
+                
+                fg, bg = colors[color_idx]
+                palette_name = f"diag_{bg}_{fg}"
+                
+                if loop:
+                    try:
+                        loop.screen.register_palette_entry(palette_name, fg, bg)
+                    except Exception:
+                        pass
+                
+                markup.append((palette_name, segment))
+        
+        self.text.set_text(markup)
+    
+    def _update_diagonal_inv(self, lines: List[str], colors: List[Tuple[str, str]], loop=None):
+        """Apply colors diagonally in opposite direction (top-right to bottom-left)."""
+        markup = []
+        num_colors = len(colors)
+        num_lines = len(lines)
+        
+        for row, line in enumerate(lines):
+            if row > 0:
+                markup.append("\n")
+            
+            if not line:
+                markup.append("")
+                continue
+            
+            segment_width = max(1, len(line) // num_colors)
+            
+            for seg_idx in range(num_colors):
+                start = seg_idx * segment_width
+                if seg_idx == num_colors - 1:
+                    end = len(line)
+                else:
+                    end = start + segment_width
+                
+                if start >= len(line):
+                    break
+                
+                segment = line[start:end]
+                if not segment:
+                    continue
+                
+                # Diagonal inverse: row - column gives opposite diagonal
+                row_factor = row / max(num_lines, 1)
+                col_factor = seg_idx / max(num_colors, 1)
+                # Subtract column from row to invert direction
+                diag_pos = (row_factor + (1 - col_factor)) / 2
+                color_idx = int(diag_pos * num_colors) % num_colors
+                
+                fg, bg = colors[color_idx]
+                palette_name = f"diaginv_{bg}_{fg}"
+                
+                if loop:
+                    try:
+                        loop.screen.register_palette_entry(palette_name, fg, bg)
+                    except Exception:
+                        pass
+                
+                markup.append((palette_name, segment))
+        
+        self.text.set_text(markup)
+    
+    def _update_radial(self, lines: List[str], colors: List[Tuple[str, str]], loop=None):
+        """Apply colors radially from center - like ripples on water."""
+        import math
+        markup = []
+        num_colors = len(colors)
+        num_lines = len(lines)
+        
+        # Center point
+        center_row = num_lines / 2
+        max_width = max(len(line) for line in lines) if lines else 80
+        center_col = max_width / 2
+        
+        # Max distance for normalization
+        max_dist = math.sqrt(center_row**2 + center_col**2)
+        
+        for row, line in enumerate(lines):
+            if row > 0:
+                markup.append("\n")
+            
+            if not line:
+                markup.append("")
+                continue
+            
+            segment_width = max(1, len(line) // num_colors)
+            
+            for seg_idx in range(num_colors):
+                start = seg_idx * segment_width
+                if seg_idx == num_colors - 1:
+                    end = len(line)
+                else:
+                    end = start + segment_width
+                
+                if start >= len(line):
+                    break
+                
+                segment = line[start:end]
+                if not segment:
+                    continue
+                
+                # Calculate distance from center (circular)
+                col_pos = start + segment_width / 2
+                dist_row = row - center_row
+                dist_col = col_pos - center_col
+                distance = math.sqrt(dist_row**2 + dist_col**2)
+                
+                # Normalize and get color
+                normalized = distance / max_dist if max_dist > 0 else 0
+                color_idx = int(normalized * num_colors) % num_colors
+                
+                fg, bg = colors[color_idx]
+                palette_name = f"radial_{bg}_{fg}"
                 
                 if loop:
                     try:
