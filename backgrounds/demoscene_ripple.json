@@ -1,0 +1,24 @@
+{
+    "name": "Demoscene Ripple",
+    "mode": "gradient",
+    "pattern": "radial",
+    "direction": "radial",
+    "colors": [
+        "black",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue"
+    ],
+    "speed": 0.07,
+    "step_size": 1.2,
+    "wave_amplitude": 1.5,
+    "wave_frequency": 2.0,
+    "phase_shift": 0.0,
+    "color_spread": 1.5,
+    "smoothness": 2,
+    "fg": "white"
+}

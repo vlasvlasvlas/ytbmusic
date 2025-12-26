@@ -1,0 +1,24 @@
+{
+    "name": "Demoscene Diagonal",
+    "mode": "gradient",
+    "pattern": "wave_sine",
+    "direction": "diagonal",
+    "colors": [
+        "black",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue"
+    ],
+    "speed": 0.08,
+    "step_size": 0.9,
+    "wave_amplitude": 1.5,
+    "wave_frequency": 1.0,
+    "phase_shift": 0.04,
+    "color_spread": 1.2,
+    "smoothness": 2,
+    "fg": "white"
+}
