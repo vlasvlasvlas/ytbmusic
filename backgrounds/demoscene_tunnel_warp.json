@@ -1,0 +1,28 @@
+{
+    // ╔════════════════════════════════════════════════════════════════╗
+    // ║  TUNNEL WARP - Viaje a través de un túnel infinito             ║
+    // ╚════════════════════════════════════════════════════════════════╝
+    "name": "Tunnel Warp",
+    "mode": "gradient",
+    "pattern": "tunnel", // Patrón túnel
+    // Colores del túnel (de afuera hacia adentro)
+    "colors": [
+        "black",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue"
+    ],
+    // === PARÁMETROS TUNNEL ===
+    "tunnel_shape": "circle", // Forma: "circle", "square", "hexagon"
+    "tunnel_speed": 2.0, // Velocidad hacia adelante (0.5-3.0)
+    "tunnel_layers": 12, // Cantidad de anillos (5-20)
+    // === PARÁMETROS GENERALES ===
+    "speed": 0.05, // Velocidad de animación
+    "color_spread": 1.2, // Extensión de colores
+    "smoothness": 2, // Suavidad entre colores
+    "fg": "white" // Color de texto
+}

@@ -136,6 +136,20 @@ class GradientRenderer:
         
         # Heartbeat config
         self.pulse_bpm = int(config.get("pulse_bpm", 60))
+        
+        # Kaleidoscope config
+        self.mirrors = int(config.get("mirrors", 6))
+        self.rotation_speed = float(config.get("rotation_speed", 1.0))
+        self.zoom = float(config.get("zoom", 1.0))
+        
+        # Tunnel config
+        self.tunnel_shape = config.get("tunnel_shape", "circle")
+        self.tunnel_speed = float(config.get("tunnel_speed", 1.5))
+        self.tunnel_layers = int(config.get("tunnel_layers", 10))
+        
+        # Fireflies config
+        self.firefly_count = int(config.get("firefly_count", 20))
+        self.blink_speed = float(config.get("blink_speed", 0.3))
 
         # Animation state
         self.time = 0.0
@@ -159,6 +173,11 @@ class GradientRenderer:
         self._bar_heights: List[float] = [0.0] * self.bar_count
         self._bar_targets: List[float] = [0.0] * self.bar_count
         self._spectrum_rng = random.Random(789)
+        
+        # Fireflies state - list of (x, y, brightness, phase)
+        self._fireflies: List[List[float]] = []
+        self._firefly_rng = random.Random(321)
+        self._init_fireflies()
 
         # Build color cycle for seamless looping
         self._build_color_cycle()
@@ -182,6 +201,119 @@ class GradientRenderer:
             speed = self._blob_rng.uniform(0.005, 0.015)
             color_idx = i % max(len(self.colors), 1)
             self._blobs.append([x, y, size, speed, color_idx])
+
+    def _init_fireflies(self):
+        """Initialize fireflies with random positions and phases."""
+        self._fireflies = []
+        for _ in range(self.firefly_count):
+            x = self._firefly_rng.uniform(0, 1)
+            y = self._firefly_rng.uniform(0, 1)
+            phase = self._firefly_rng.uniform(0, 2 * math.pi)
+            speed = self._firefly_rng.uniform(0.5, 1.5)
+            self._fireflies.append([x, y, phase, speed])
+
+    def _kaleidoscope_value(self, line: int, col: int, height: int, width: int) -> float:
+        """
+        Calculate kaleidoscope effect - symmetric mirrored patterns.
+        Creates mandala-like patterns that rotate.
+        """
+        # Center coordinates
+        cx = width / 2
+        cy = height / 2
+        
+        # Offset from center
+        dx = (col - cx) / max(width, 1)
+        dy = (line - cy) / max(height, 1) * 2  # Aspect ratio adjustment
+        
+        # Convert to polar coordinates
+        r = math.sqrt(dx * dx + dy * dy) * self.zoom
+        theta = math.atan2(dy, dx)
+        
+        # Add rotation animation
+        theta += self.time * self.rotation_speed
+        
+        # Mirror around axes (creates kaleidoscope symmetry)
+        segment_angle = 2 * math.pi / self.mirrors
+        theta = abs((theta % segment_angle) - segment_angle / 2)
+        
+        # Create pattern based on angle and radius
+        value = math.sin(theta * 4 + r * 10 - self.time * 2)
+        value = (value + 1) / 2  # Normalize to 0-1
+        
+        return value
+
+    def _tunnel_value(self, line: int, col: int, height: int, width: int) -> float:
+        """
+        Calculate tunnel warp effect - shapes approaching viewer.
+        Creates 3D depth illusion.
+        """
+        # Center coordinates
+        cx = width / 2
+        cy = height / 2
+        
+        dx = (col - cx) / max(width, 1)
+        dy = (line - cy) / max(height, 1) * 2
+        
+        # Distance from center
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist < 0.001:
+            dist = 0.001
+        
+        # Create concentric layers moving toward viewer
+        if self.tunnel_shape == "square":
+            # Square tunnel - use max of abs values
+            dist = max(abs(dx), abs(dy))
+        elif self.tunnel_shape == "hexagon":
+            # Hexagonal approximation
+            angle = math.atan2(dy, dx)
+            dist = dist * (1 + 0.1 * math.cos(6 * angle))
+        
+        # Animate layers moving toward viewer
+        layer = (1.0 / dist + self.time * self.tunnel_speed) % 1.0
+        
+        # Create depth rings
+        ring = (layer * self.tunnel_layers) % 1.0
+        
+        return ring
+
+    def _firefly_value(self, line: int, col: int, height: int, width: int) -> float:
+        """
+        Calculate firefly field - blinking points of light.
+        """
+        x = col / max(width, 1)
+        y = line / max(height, 1)
+        
+        total_brightness = 0.0
+        
+        for ff in self._fireflies:
+            fx, fy, phase, speed = ff
+            
+            # Distance from firefly
+            dx = x - fx
+            dy = (y - fy) * 0.5  # Aspect ratio
+            dist = math.sqrt(dx * dx + dy * dy)
+            
+            # Firefly glow radius
+            glow_radius = 0.08
+            
+            if dist < glow_radius:
+                # Blinking intensity based on sine wave
+                blink = (math.sin(self.time * speed * 5 + phase) + 1) / 2
+                # Closer = brighter, with soft falloff
+                intensity = (1 - dist / glow_radius) * blink
+                total_brightness += intensity
+        
+        return min(total_brightness, 1.0)
+
+    def _update_fireflies(self):
+        """Move fireflies slightly for organic feel."""
+        for ff in self._fireflies:
+            # Subtle random movement
+            ff[0] += self._firefly_rng.uniform(-0.005, 0.005)
+            ff[1] += self._firefly_rng.uniform(-0.003, 0.003)
+            # Keep in bounds
+            ff[0] = max(0, min(1, ff[0]))
+            ff[1] = max(0, min(1, ff[1]))
 
     def _aurora_value(self, line: int, col: int, height: int, width: int) -> float:
         """
@@ -592,6 +724,48 @@ class GradientRenderer:
                     bg = self.color_cycle[color_idx]
                 else:
                     bg = self.color_cycle[0]
+                colors.append((self.fg_color, bg))
+            return colors
+        
+        # Kaleidoscope pattern
+        if self.pattern == "kaleidoscope":
+            for line in range(height):
+                # Sample at line center
+                wave_pos = self._kaleidoscope_value(line, width // 2, height, width)
+                wave_pos = (wave_pos * self.color_spread) % 1.0
+                color_idx = int(wave_pos * cycle_len) % cycle_len
+                bg = self.color_cycle[color_idx]
+                colors.append((self.fg_color, bg))
+            return colors
+        
+        # Tunnel warp pattern
+        if self.pattern == "tunnel":
+            for line in range(height):
+                # Sample at line center
+                wave_pos = self._tunnel_value(line, width // 2, height, width)
+                wave_pos = (wave_pos * self.color_spread) % 1.0
+                color_idx = int(wave_pos * cycle_len) % cycle_len
+                bg = self.color_cycle[color_idx]
+                colors.append((self.fg_color, bg))
+            return colors
+        
+        # Fireflies pattern
+        if self.pattern == "fireflies":
+            self._update_fireflies()
+            for line in range(height):
+                # Sample multiple points for firefly detection
+                total = 0.0
+                samples = 5
+                for s in range(samples):
+                    col = int((s + 0.5) * width / samples)
+                    total += self._firefly_value(line, col, height, width)
+                intensity = total / samples
+                
+                if intensity > 0.1:
+                    color_idx = int(intensity * cycle_len) % cycle_len
+                    bg = self.color_cycle[max(1, color_idx)]  # Avoid darkest for glow
+                else:
+                    bg = self.color_cycle[0]  # Dark background
                 colors.append((self.fg_color, bg))
             return colors
 
