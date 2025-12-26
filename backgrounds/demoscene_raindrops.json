@@ -1,0 +1,25 @@
+{
+    "name": "Demoscene Raindrops",
+    "mode": "gradient",
+    "pattern": "raindrops",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue"
+    ],
+    "speed": 0.06,
+    "step_size": 1.0,
+    "wave_frequency": 2.0,
+    "color_spread": 1.5,
+    "smoothness": 2,
+    "drop_count": 5,
+    "drop_speed": 1.5,
+    "drop_lifetime": 35,
+    "fg": "white"
+}

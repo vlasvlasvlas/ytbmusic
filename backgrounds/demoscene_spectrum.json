@@ -1,0 +1,20 @@
+{
+    "name": "Spectrum Analyzer",
+    "mode": "gradient",
+    "pattern": "spectrum",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark green",
+        "light green",
+        "yellow",
+        "light red",
+        "dark red"
+    ],
+    "speed": 0.06,
+    "step_size": 1.0,
+    "color_spread": 1.2,
+    "smoothness": 1,
+    "bar_count": 16,
+    "fg": "white"
+}

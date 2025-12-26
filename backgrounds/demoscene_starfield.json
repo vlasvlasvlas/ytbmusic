@@ -1,0 +1,21 @@
+{
+    "name": "Starfield Warp",
+    "mode": "gradient",
+    "pattern": "starfield",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark gray",
+        "light gray",
+        "white",
+        "light cyan",
+        "white"
+    ],
+    "speed": 0.05,
+    "step_size": 1.2,
+    "color_spread": 1.0,
+    "smoothness": 1,
+    "star_count": 60,
+    "star_speed": 2.0,
+    "fg": "white"
+}

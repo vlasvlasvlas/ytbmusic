@@ -1,0 +1,25 @@
+{
+    "name": "Demoscene Rain Storm",
+    "mode": "gradient",
+    "pattern": "raindrops",
+    "direction": "vertical",
+    "colors": [
+        "black",
+        "dark gray",
+        "light gray",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue",
+        "black"
+    ],
+    "speed": 0.04,
+    "step_size": 1.5,
+    "wave_frequency": 3.0,
+    "color_spread": 2.0,
+    "smoothness": 3,
+    "drop_count": 12,
+    "drop_speed": 2.5,
+    "drop_lifetime": 25,
+    "fg": "white"
+}
