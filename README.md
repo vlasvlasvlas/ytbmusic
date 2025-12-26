@@ -22,7 +22,7 @@
 |---------|-------------|
 | 🌐 **Multilenguaje** | Interfaz en Español e Inglés. Cambiá desde Settings o con `YTBMUSIC_LANG=en`. |
 | 🎧 **Streaming Externo** | Transmití a servidores Icecast/Shoutcast. Compartí el link con amigos. |
-| 🌈 **Gradientes Demoscene** | Fondos animados estilo "copper bar" con barridos de color. |
+| 🌈 **Gradientes Demoscene** | 12 patrones animados (aurora, starfield, kaleidoscope, fireflies...). |
 | 💿 **Chapter Splitting** | Videos con timestamps se convierten en playlists con tracks individuales. |
 | 🎵 **Streaming + Cache** | Reproducción inmediata + descarga en segundo plano. |
 | 🔈 **Background Playback** | La música sigue al volver al menú (`M`) o importar playlists. |
@@ -214,8 +214,8 @@ ytbmusic/
 ## 🎨 Personalización
 
 - **[Skins](SKINS.md)** - Interfaces ASCII completas
-- **[Animaciones](ANIMATIONS.md)** - Visualizaciones para el footer
-- **[Fondos](BACKGROUNDS.md)** - Colores sólidos, transiciones o gradientes
+- **[Animaciones](ANIMATIONS.md)** - Visualizaciones para el footer (3 líneas)
+- **[Fondos](BACKGROUNDS.md)** - 12 patrones animados (aurora, kaleidoscope, fireflies, tunnel, etc). Soporta comentarios `//` en JSON.
 
 ---
 

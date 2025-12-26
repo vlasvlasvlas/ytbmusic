@@ -1,0 +1,24 @@
+{
+    // ╔════════════════════════════════════════════════════════════════╗
+    // ║  FIREFLIES - Luciérnagas parpadeando en la noche               ║
+    // ╚════════════════════════════════════════════════════════════════╝
+    "name": "Fireflies Night",
+    "mode": "gradient",
+    "pattern": "fireflies", // Patrón luciérnagas
+    // Colores de las luciérnagas (de oscuro a brillante)
+    "colors": [
+        "black", // Fondo oscuro de noche
+        "dark green", // Brillo tenue
+        "light green", // Brillo medio
+        "yellow", // Brillo alto
+        "white" // Brillo máximo
+    ],
+    // === PARÁMETROS FIREFLIES ===
+    "firefly_count": 25, // Cantidad de luciérnagas (10-50)
+    "blink_speed": 0.4, // Velocidad de parpadeo (0.1-1.0)
+    // === PARÁMETROS GENERALES ===
+    "speed": 0.08, // Velocidad de animación
+    "color_spread": 1.0, // Extensión de colores
+    "smoothness": 1, // Suavidad entre colores
+    "fg": "light green" // Color de texto
+}

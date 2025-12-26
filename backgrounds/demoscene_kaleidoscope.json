@@ -1,0 +1,30 @@
+{
+    // ╔════════════════════════════════════════════════════════════════╗
+    // ║  KALEIDOSCOPE - Patrones simétricos tipo mandala               ║
+    // ╚════════════════════════════════════════════════════════════════╝
+    "name": "Kaleidoscope Mandala",
+    "mode": "gradient",
+    "pattern": "kaleidoscope", // Patrón caleidoscopio
+    // Colores del mandala (se reflejan en los espejos)
+    "colors": [
+        "black",
+        "dark magenta",
+        "dark blue",
+        "dark cyan",
+        "light cyan",
+        "white",
+        "light cyan",
+        "dark cyan",
+        "dark blue",
+        "dark magenta"
+    ],
+    // === PARÁMETROS KALEIDOSCOPE ===
+    "mirrors": 8, // Cantidad de ejes de simetría (4, 6, 8)
+    "rotation_speed": 0.8, // Velocidad de rotación (0.5-3.0)
+    "zoom": 1.2, // Zoom del patrón (0.5-2.0)
+    // === PARÁMETROS GENERALES ===
+    "speed": 0.06, // Velocidad de animación
+    "color_spread": 1.5, // Extensión de colores
+    "smoothness": 2, // Suavidad entre colores
+    "fg": "white" // Color de texto
+}

@@ -100,6 +100,11 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 | `spectrum` | Ecualizador/spectrum analyzer animado | `bar_count` (8-32) |
 | `heartbeat` | Pulso cardíaco - anillos expandiéndose | `pulse_bpm` (40-180) |
 | `raindrops` | Gotas de lluvia con ondas circulares | `drop_count` (1-20), `drop_speed`, `drop_lifetime` |
+| `kaleidoscope` | Mandala simétrico rotando | `mirrors` (4-8), `rotation_speed`, `zoom` |
+| `tunnel` | Túnel warp 3D hacia adelante | `tunnel_shape` (circle/square/hexagon), `tunnel_speed`, `tunnel_layers` |
+| `fireflies` | Luciérnagas parpadeando en la noche | `firefly_count` (10-50), `blink_speed` |
+
+> 💡 **Tip:** Los archivos JSON soportan comentarios `//` estilo JavaScript.
 
 ---
 
@@ -175,6 +180,9 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 | `demoscene_spectrum.json` | `spectrum` | Ecualizador animado |
 | `demoscene_heartbeat.json` | `heartbeat` | Pulso cardíaco expandiéndose |
 | `demoscene_raindrops.json` | `raindrops` | Gotas de lluvia con ondas |
+| `demoscene_kaleidoscope.json` | `kaleidoscope` | Mandala simétrico rotando |
+| `demoscene_tunnel_warp.json` | `tunnel` | Túnel 3D hacia adelante |
+| `demoscene_fireflies.json` | `fireflies` | Luciérnagas parpadeando |
 
 ### Fondos estáticos/cycling
 
