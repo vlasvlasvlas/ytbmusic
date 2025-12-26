@@ -78,7 +78,9 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 
 ---
 
-## 🎨 Patrones de Onda (Demoscene)
+## 🎨 Patrones Disponibles (Demoscene)
+
+### Patrones de Onda Clásicos
 
 | Patrón | Descripción | Uso recomendado |
 |--------|-------------|-----------------|
@@ -87,6 +89,17 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 | `wave_sawtooth` | Barrido + reset | Matrix, cascadas |
 | `plasma` | Ondas superpuestas | Psicodélico, aurora, lava |
 | `radial` | Anillos desde centro | Túnel, hipnótico |
+
+### 🆕 Patrones Avanzados
+
+| Patrón | Descripción | Parámetros Especiales |
+|--------|-------------|----------------------|
+| `aurora` | Aurora Borealis - cortinas de luz ondulantes | `aurora_waves` (2-6) |
+| `starfield` | Estrellas volando hacia el espectador | `star_count` (20-100), `star_speed` (0.5-3.0) |
+| `lava` | Lava lamp - burbujas que suben y flotan | `blob_count` (3-10) |
+| `spectrum` | Ecualizador/spectrum analyzer animado | `bar_count` (8-32) |
+| `heartbeat` | Pulso cardíaco - anillos expandiéndose | `pulse_bpm` (40-180) |
+| `raindrops` | Gotas de lluvia con ondas circulares | `drop_count` (1-20), `drop_speed`, `drop_lifetime` |
 
 ---
 
@@ -139,6 +152,8 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 
 ## 🎮 Fondos Demoscene Incluidos
 
+### Patrones Clásicos
+
 | Archivo | Patrón | Descripción |
 |---------|--------|-------------|
 | `demoscene_copper.json` | `wave_sine` | Copper bar azul/cyan clásico |
@@ -146,11 +161,20 @@ Efectos estilo **copper bar** de Commodore/Amiga con patrones de onda y transici
 | `demoscene_plasma.json` | `plasma` | Plasma psicodélico multicolor |
 | `demoscene_rainbow.json` | `wave_sine` | Arcoíris ondulante |
 | `demoscene_tunnel.json` | `radial` | Anillos expandiéndose |
-| `demoscene_aurora.json` | `plasma` | Aurora boreal |
 | `demoscene_neon.json` | `wave_triangle` | Neon rápido magenta/cyan |
-| `demoscene_lava.json` | `plasma` | Lava lamp orgánico |
 | `demoscene_matrix.json` | `wave_sawtooth` | Cascada verde estilo Matrix |
 | `demoscene_subtle.json` | `wave_sine` | Suave, baja intensidad |
+
+### 🆕 Patrones Avanzados
+
+| Archivo | Patrón | Descripción |
+|---------|--------|-------------|
+| `demoscene_aurora.json` | `aurora` | Aurora Borealis - cortinas de luz |
+| `demoscene_starfield.json` | `starfield` | Estrellas en viaje warp |
+| `demoscene_lava.json` | `lava` | Lava lamp con burbujas flotantes |
+| `demoscene_spectrum.json` | `spectrum` | Ecualizador animado |
+| `demoscene_heartbeat.json` | `heartbeat` | Pulso cardíaco expandiéndose |
+| `demoscene_raindrops.json` | `raindrops` | Gotas de lluvia con ondas |
 
 ### Fondos estáticos/cycling
 

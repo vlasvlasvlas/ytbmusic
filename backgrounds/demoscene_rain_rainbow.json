@@ -1,0 +1,25 @@
+{
+    "name": "Demoscene Rain Rainbow",
+    "mode": "gradient",
+    "pattern": "raindrops",
+    "direction": "vertical",
+    "colors": [
+        "dark red",
+        "light red",
+        "yellow",
+        "light green",
+        "dark cyan",
+        "light blue",
+        "dark magenta",
+        "light magenta"
+    ],
+    "speed": 0.07,
+    "step_size": 1.2,
+    "wave_frequency": 2.5,
+    "color_spread": 1.8,
+    "smoothness": 2,
+    "drop_count": 8,
+    "drop_speed": 1.8,
+    "drop_lifetime": 40,
+    "fg": "white"
+}
