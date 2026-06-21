@@ -232,3 +232,6 @@ GitHub Actions compila para Windows, macOS y Linux en cada release.
 ## 📄 Licencia
 
 MIT License. Usalo y modificalo libremente.
+## License
+
+MIT License — © 2026 [Vladimiro Bellini](https://github.com/vlasvlasvlas). Free to use and modify, attribution required.
