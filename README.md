@@ -229,6 +229,32 @@ GitHub Actions compila para Windows, macOS y Linux en cada release.
 
 ---
 
+## 🔧 Troubleshooting
+
+### Error 403 al descargar playlists
+
+YouTube bloquea versiones viejas de `yt-dlp`. Si ves `HTTP Error 403: Forbidden` en los logs:
+
+```bash
+# Actualizar yt-dlp dentro del venv
+venv/bin/pip install --upgrade yt-dlp
+
+# O si instalaste globalmente
+pip install --upgrade yt-dlp
+```
+
+Si el error persiste, refresheá las cookies desde Settings (`O`) → **Refrescar Cookies**.
+
+---
+
+## 📋 Changelog
+
+### 2026-09-17
+- **Fix:** Método `_update_now_playing_footer` faltante que causaba crash al iniciar reproducción
+- **Fix:** Actualizado requisito mínimo de `yt-dlp` a `>=2026.08.01` para resolver errores 403 de YouTube
+
+---
+
 ## 📄 Licencia
 
 MIT License. Usalo y modificalo libremente.

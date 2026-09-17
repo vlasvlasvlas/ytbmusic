@@ -1799,6 +1799,11 @@ class YTBMusicUI(BackgroundMixin):
         """Log to the scrolling message log."""
         self.message_log.log(message, style)
 
+    def _update_now_playing_footer(self, track):
+        """Log now-playing track to the message log footer."""
+        artist = f" — {track.artist}" if getattr(track, "artist", None) else ""
+        self.log_activity(f"♪ Now playing: {track.title}{artist}", style="success")
+
     def _start_download_event_pump(self):
         """Drain DownloadManager events on the main loop (thread-safe)."""
         if getattr(self, "_download_event_alarm", None):
@@ -2187,9 +2192,10 @@ class YTBMusicUI(BackgroundMixin):
                             )
 
                         except Exception as e:
-                            logger.error(f"[THREAD] Import error: {e}")
+                            error_str = str(e)
+                            logger.error(f"[THREAD] Import error: {error_str}")
                             self.loop.set_alarm_in(
-                                0, lambda l, d: self._on_import_error(str(e))
+                                0, lambda l, d, err=error_str: self._on_import_error(err)
                             )
 
                     self.import_thread = threading.Thread(
